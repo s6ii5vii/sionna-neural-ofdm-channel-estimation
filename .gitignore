@@ -76,7 +76,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # IPython
 profile_default/
@@ -216,3 +216,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Research outputs and local ML artifacts
+data/*.npz
+!data/channel_estimation_dataset.npz
+data/generated/
+results/figures/*
+!results/figures/.gitkeep
+results/tables/*
+!results/tables/.gitkeep
+results/checkpoints/
+*.keras
+*.h5
+*.ckpt
+checkpoint
+
+# Local experiment and editor state
+.idea/
+.vscode/

@@ -1,0 +1,12 @@
+experiment:
+  name: baseline_ls
+  description: Least-squares channel estimation across SNR values.
+  snr_db: [0, 5, 10, 15, 20, 25, 30]
+  num_samples: 1000
+  num_pilots: 64
+  pilot_density: 1.0
+  random_seed: 42
+
+output:
+  figures_dir: results/figures
+  tables_dir: results/tables
