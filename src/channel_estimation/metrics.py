@@ -16,9 +16,7 @@ def bit_error_rate(reference_bits: ArrayLike, estimated_bits: ArrayLike) -> floa
         raise ValueError("reference_bits and estimated_bits must have equal shapes.")
     if reference.size == 0:
         raise ValueError("Bit arrays must not be empty.")
-    if not np.all(np.isin(reference, (0, 1))) or not np.all(
-        np.isin(estimated, (0, 1))
-    ):
+    if not np.all(np.isin(reference, (0, 1))) or not np.all(np.isin(estimated, (0, 1))):
         raise ValueError("BER inputs must contain only 0 and 1.")
     return float(np.mean(reference != estimated))
 
@@ -30,6 +28,8 @@ def normalized_mean_squared_error(
     epsilon: float = 1e-12,
 ) -> float:
     """Return mean squared error normalized by reference signal power."""
+    if not np.isfinite(epsilon) or epsilon <= 0:
+        raise ValueError("epsilon must be a positive finite value.")
     reference_array = np.asarray(reference)
     estimate_array = np.asarray(estimate)
     if reference_array.shape != estimate_array.shape:
@@ -47,13 +47,15 @@ def normalized_mean_squared_error(
 def nmse_db(reference: ArrayLike, estimate: ArrayLike) -> float:
     """Return NMSE in decibels."""
     value = normalized_mean_squared_error(reference, estimate)
+    if value == 0:
+        return float("-inf")
     return float(10.0 * np.log10(value))
 
 
 def aggregate_by_snr(
     snr_values: Iterable[float],
     metric_values: Iterable[float],
-) -> dict[float, dict[str, float]]:
+) -> dict[float, dict[str, float | int]]:
     """Aggregate repeated metric values by SNR using mean and sample spread."""
     grouped: dict[float, list[float]] = {}
     snr_list = list(snr_values)
@@ -68,7 +70,7 @@ def aggregate_by_snr(
         snr: {
             "mean": float(np.mean(values)),
             "std": float(np.std(values, ddof=1)) if len(values) > 1 else 0.0,
-            "count": float(len(values)),
+            "count": len(values),
         }
         for snr, values in sorted(grouped.items())
     }

@@ -39,7 +39,39 @@ def load_npz_dataset(
             missing = sorted(set(required_keys) - set(archive.files))
             if missing:
                 raise KeyError(f"Dataset is missing required arrays: {missing}")
-        return {key: archive[key] for key in archive.files}
+        dataset = {key: archive[key] for key in archive.files}
+
+    if required_keys == EXPECTED_SPLIT_KEYS:
+        validate_split_dataset(dataset)
+    return dataset
+
+
+def validate_split_dataset(dataset: Mapping[str, ArrayLike]) -> None:
+    """Validate shapes for the standard train, validation, and test arrays."""
+    expected_feature_shape: tuple[int, int] | None = None
+    for split, label in (
+        ("train", "training"),
+        ("val", "validation"),
+        ("test", "test"),
+    ):
+        inputs = np.asarray(dataset[f"x_{split}"])
+        targets = np.asarray(dataset[f"y_{split}"])
+        if inputs.shape != targets.shape:
+            raise ValueError(f"Input and target shapes differ for the {label} split.")
+        if inputs.ndim != 3 or inputs.shape[-1] != 2:
+            raise ValueError(f"The {label} split must have shape (samples, pilots, 2).")
+        if inputs.shape[0] == 0:
+            raise ValueError(f"The {label} split must not be empty.")
+        if not np.issubdtype(inputs.dtype, np.number) or not np.issubdtype(
+            targets.dtype, np.number
+        ):
+            raise ValueError(f"The {label} split must contain numeric arrays.")
+
+        feature_shape = inputs.shape[1:]
+        if expected_feature_shape is None:
+            expected_feature_shape = feature_shape
+        elif feature_shape != expected_feature_shape:
+            raise ValueError("All dataset splits must use the same pilot dimensions.")
 
 
 def inspect_dataset(
@@ -47,7 +79,10 @@ def inspect_dataset(
 ) -> dict[str, dict[str, object]]:
     """Return serializable shape and dtype metadata for dataset arrays."""
     return {
-        key: {"shape": list(np.asarray(value).shape), "dtype": str(np.asarray(value).dtype)}
+        key: {
+            "shape": list(np.asarray(value).shape),
+            "dtype": str(np.asarray(value).dtype),
+        }
         for key, value in dataset.items()
     }
 
@@ -89,6 +124,10 @@ def split_dataset(
 
     train_end = int(len(x) * train_fraction)
     validation_end = train_end + int(len(x) * validation_fraction)
+    if train_end == 0 or validation_end == train_end or validation_end == len(x):
+        raise ValueError(
+            "Split fractions must produce non-empty train, validation, and test sets."
+        )
     return {
         "x_train": x[:train_end],
         "y_train": y[:train_end],

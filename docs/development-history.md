@@ -2,7 +2,7 @@
 
 The project began as a sequence of exploratory notebooks and was later
 restructured into a reproducible research codebase. The original dated notes
-are retained under `archive/learning_log/`.
+are retained under `archive/learning-log/`.
 
 ## Environment and Sionna validation
 

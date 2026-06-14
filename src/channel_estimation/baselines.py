@@ -17,6 +17,12 @@ def least_squares_estimate(
     """
     received = np.asarray(received_pilots)
     pilots = np.asarray(pilot_symbols)
+    try:
+        pilots_are_finite = bool(np.all(np.isfinite(pilots)))
+    except TypeError as exc:
+        raise ValueError("Pilot symbols must be numeric and finite.") from exc
+    if not pilots_are_finite:
+        raise ValueError("Pilot symbols must be finite.")
     if np.any(pilots == 0):
         raise ValueError("Least-squares estimation requires non-zero pilot symbols.")
     try:

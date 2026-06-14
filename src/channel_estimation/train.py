@@ -17,27 +17,25 @@ def train_model(config: dict[str, Any]) -> Path:
     if not isinstance(training, dict):
         raise ValueError("The config needs a 'training' mapping for model training.")
 
-    dataset_path = resolve_path(config, training["dataset_path"])
+    dataset_path = resolve_path(config, training["dataset-path"])
     data = load_npz_dataset(dataset_path)
     num_pilots = int(data["x_train"].shape[1])
     model = build_lightweight_estimator(
         num_pilots,
-        hidden_units=int(training.get("hidden_units", 64)),
-        dropout_rate=float(training.get("dropout_rate", 0.0)),
+        hidden_units=int(training["hidden-units"]),
+        dropout_rate=float(training.get("dropout-rate", 0.0)),
     )
     model.compile(optimizer="adam", loss="mse")
     model.fit(
         data["x_train"],
         data["y_train"],
         validation_data=(data["x_val"], data["y_val"]),
-        epochs=int(training.get("epochs", 10)),
-        batch_size=int(training.get("batch_size", 64)),
+        epochs=int(training["epochs"]),
+        batch_size=int(training["batch-size"]),
         verbose=2,
     )
 
-    checkpoint = resolve_path(
-        config, training.get("checkpoint_path", "results/checkpoints/model.keras")
-    )
+    checkpoint = resolve_path(config, training["checkpoint-path"])
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     model.save(checkpoint)
     return checkpoint

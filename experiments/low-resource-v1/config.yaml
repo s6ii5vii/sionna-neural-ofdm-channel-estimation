@@ -1,0 +1,22 @@
+experiment:
+  name: low-resource-v1-ls
+  description: First constrained profile using fewer pilots and samples.
+  snr-db: [-5, 0, 5, 10, 15]
+  num-samples: 500
+  num-pilots: 64
+  pilot-density: 0.25
+  dataset-size-target: 5000
+  model-parameter-target: 50000
+  random-seed: 42
+
+training:
+  dataset-path: data/channel-estimation-dataset.npz
+  hidden-units: 64
+  dropout-rate: 0.0
+  epochs: 10
+  batch-size: 64
+  checkpoint-path: results/checkpoints/low-resource-v1.keras
+
+output:
+  figures-dir: results/figures
+  tables-dir: results/tables

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+from numbers import Real
 from typing import Any
 
 
@@ -17,9 +19,21 @@ def build_lightweight_estimator(
     state-of-the-art performance. TensorFlow is imported lazily so classical
     experiments and unit tests do not require the ML stack.
     """
-    if num_pilots <= 0 or hidden_units <= 0:
-        raise ValueError("num_pilots and hidden_units must be positive.")
-    if not 0 <= dropout_rate < 1:
+    if (
+        not isinstance(num_pilots, int)
+        or isinstance(num_pilots, bool)
+        or num_pilots <= 0
+        or not isinstance(hidden_units, int)
+        or isinstance(hidden_units, bool)
+        or hidden_units <= 0
+    ):
+        raise ValueError("num_pilots and hidden_units must be positive integers.")
+    if (
+        not isinstance(dropout_rate, Real)
+        or isinstance(dropout_rate, bool)
+        or not math.isfinite(dropout_rate)
+        or not 0 <= dropout_rate < 1
+    ):
         raise ValueError("dropout_rate must be in [0, 1).")
 
     try:

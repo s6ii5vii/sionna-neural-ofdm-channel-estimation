@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from numbers import Real
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
@@ -13,7 +15,12 @@ def snr_db_to_linear(snr_db: ArrayLike) -> NDArray[np.float64]:
 
 def noise_power_from_snr(snr_db: float, signal_power: float = 1.0) -> float:
     """Return complex AWGN power for a target SNR."""
-    if signal_power <= 0:
+    if (
+        not isinstance(signal_power, Real)
+        or isinstance(signal_power, bool)
+        or not np.isfinite(signal_power)
+        or signal_power <= 0
+    ):
         raise ValueError("signal_power must be positive.")
     return float(signal_power / snr_db_to_linear(snr_db))
 
@@ -26,19 +33,38 @@ def generate_pilot_symbols(
     dtype: np.dtype = np.complex64,
 ) -> NDArray[np.complexfloating]:
     """Generate non-zero constant pilots used by the current baseline."""
-    if num_pilots <= 0:
-        raise ValueError("num_pilots must be positive.")
-    if value == 0:
-        raise ValueError("Pilot symbols must be non-zero.")
+    if (
+        not isinstance(num_pilots, int)
+        or isinstance(num_pilots, bool)
+        or num_pilots <= 0
+    ):
+        raise ValueError("num_pilots must be a positive integer.")
+    if batch_size is not None and (
+        not isinstance(batch_size, int)
+        or isinstance(batch_size, bool)
+        or batch_size <= 0
+    ):
+        raise ValueError("batch_size must be a positive integer when provided.")
+    if not np.isfinite(value) or value == 0:
+        raise ValueError("Pilot symbols must be finite and non-zero.")
     shape = (num_pilots,) if batch_size is None else (batch_size, num_pilots)
     return np.full(shape, value, dtype=dtype)
 
 
 def pilot_indices(num_subcarriers: int, pilot_density: float) -> NDArray[np.int64]:
     """Choose approximately uniform pilot locations for sparse-pilot studies."""
-    if num_subcarriers <= 0:
-        raise ValueError("num_subcarriers must be positive.")
-    if not 0 < pilot_density <= 1:
+    if (
+        not isinstance(num_subcarriers, int)
+        or isinstance(num_subcarriers, bool)
+        or num_subcarriers <= 0
+    ):
+        raise ValueError("num_subcarriers must be a positive integer.")
+    if (
+        not isinstance(pilot_density, Real)
+        or isinstance(pilot_density, bool)
+        or not np.isfinite(pilot_density)
+        or not 0 < pilot_density <= 1
+    ):
         raise ValueError("pilot_density must be in (0, 1].")
 
     count = max(1, int(round(num_subcarriers * pilot_density)))

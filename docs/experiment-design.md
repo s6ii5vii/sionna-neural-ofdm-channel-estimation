@@ -66,10 +66,10 @@ seeds where appropriate.
 
 ## Experiment profiles
 
-`baseline_ls` evaluates the implemented LS estimator across 0-30 dB SNR with all
+`baseline-ls` evaluates the implemented LS estimator across 0-30 dB SNR with all
 64 pilot locations.
 
-`low_resource_v1` defines an initial constrained profile with lower SNR values,
+`low-resource-v1` defines an initial constrained profile with lower SNR values,
 25% pilot density, fewer evaluation samples, a training-dataset target, and a
 model-parameter target. Its current runner evaluates only the implemented LS
 portion.

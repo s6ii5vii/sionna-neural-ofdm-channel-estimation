@@ -54,14 +54,14 @@ Planned:
 ## Repository structure
 
 ```text
-src/channel_estimation/   reusable simulation, baseline, metric, model, and I/O code
+src/channel_estimation/   Python import package (underscore required by Python)
 experiments/              versioned experiment configurations and runners
 notebooks/                explanation, visualization, and guided demos
 data/                     committed sample data and dataset documentation
 results/                  generated figures and tables
 docs/                     research framing, design, alignment, and report scaffold
 tests/                    focused correctness tests
-archive/learning_log/     original dated development notes
+archive/learning-log/     original dated development notes
 ```
 
 ## Quickstart
@@ -96,18 +96,18 @@ environment may be preferable.
 ## Run the LS baseline
 
 ```bash
-python experiments/baseline_ls/run_experiment.py
+python experiments/baseline-ls/run-experiment.py
 ```
 
-The runner reads `experiments/baseline_ls/config.yaml` and writes:
+The runner reads `experiments/baseline-ls/config.yaml` and writes:
 
-- `results/tables/baseline_ls.csv`
-- `results/figures/baseline_ls_nmse.png`
+- `results/tables/baseline-ls.csv`
+- `results/figures/baseline-ls-nmse.png`
 
 Run the implemented classical portion of the first constrained profile with:
 
 ```bash
-python experiments/low_resource_v1/run_experiment.py
+python experiments/low-resource-v1/run-experiment.py
 ```
 
 The sparse-pilot profile currently evaluates only selected pilot locations. It
@@ -118,7 +118,7 @@ does not yet reconstruct unobserved subcarriers.
 ```python
 from channel_estimation.dataset import inspect_dataset, load_npz_dataset
 
-dataset = load_npz_dataset("data/channel_estimation_dataset.npz")
+dataset = load_npz_dataset("data/channel-estimation-dataset.npz")
 print(inspect_dataset(dataset))
 ```
 
@@ -138,7 +138,7 @@ The first study profiles cover:
 - robustness across later, explicitly defined channel conditions.
 
 The exact definitions, assumptions, and exclusions are documented in
-[`docs/low_resource_framing.md`](docs/low_resource_framing.md).
+[`docs/low-resource-framing.md`](docs/low-resource-framing.md).
 
 ## Proposal relevance
 
@@ -148,7 +148,7 @@ demonstrates a progression from a technical question to baselines, datasets,
 tests, configurations, and a report structure. It is not presented as a GSoC
 project, accepted research, or evidence of a 6G breakthrough.
 
-See [`docs/proposal_alignment.md`](docs/proposal_alignment.md) for the detailed
+See [`docs/proposal-alignment.md`](docs/proposal-alignment.md) for the detailed
 mapping and boundaries.
 
 ## Limitations

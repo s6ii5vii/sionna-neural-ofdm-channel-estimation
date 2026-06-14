@@ -2,7 +2,7 @@
 
 ## Committed sample dataset
 
-`channel_estimation_dataset.npz` is a small reference dataset generated for the
+`channel-estimation-dataset.npz` is a small reference dataset generated for the
 first neural-estimator experiments. It contains 5,000 simulated examples with
 64 pilot observations per example at 10 dB SNR.
 

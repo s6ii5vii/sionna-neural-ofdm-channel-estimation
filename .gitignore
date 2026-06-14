@@ -219,7 +219,7 @@ __marimo__/
 
 # Research outputs and local ML artifacts
 data/*.npz
-!data/channel_estimation_dataset.npz
+!data/channel-estimation-dataset.npz
 data/generated/
 results/figures/*
 !results/figures/.gitkeep

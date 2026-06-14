@@ -16,6 +16,11 @@ def test_least_squares_rejects_zero_pilot():
         least_squares_estimate([1 + 0j], [0 + 0j])
 
 
+def test_least_squares_rejects_non_finite_pilot():
+    with pytest.raises(ValueError, match="finite"):
+        least_squares_estimate([1 + 0j], [np.nan + 0j])
+
+
 def test_lmmse_is_explicitly_planned():
     with pytest.raises(NotImplementedError, match="planned"):
         lmmse_estimate()
