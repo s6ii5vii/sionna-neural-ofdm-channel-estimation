@@ -33,6 +33,16 @@ def test_generate_synthetic_dataset_shapes():
     assert dataset["x_train"].dtype == np.float32
 
 
+def test_load_dataset_accepts_ofdm_grid_shape(tmp_path):
+    path = tmp_path / "grid.npz"
+    arrays = {
+        key: np.zeros((2, 14, 16, 2), dtype=np.float32) for key in EXPECTED_SPLIT_KEYS
+    }
+    np.savez(path, **arrays)
+    loaded = load_npz_dataset(path)
+    assert loaded["x_train"].shape == (2, 14, 16, 2)
+
+
 def test_load_dataset_rejects_mismatched_split_shapes(tmp_path):
     path = tmp_path / "malformed.npz"
     arrays = {key: np.zeros((2, 3, 2), dtype=np.float32) for key in EXPECTED_SPLIT_KEYS}
