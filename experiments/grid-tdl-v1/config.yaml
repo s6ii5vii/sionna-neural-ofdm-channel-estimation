@@ -1,0 +1,17 @@
+experiment:
+  name: grid-tdl-v1
+  description: Sionna OFDM resource-grid LS baselines on a 3GPP TDL-A channel.
+  num-subcarriers: 72
+  num-ofdm-symbols: 14
+  pilot-ofdm-symbol-indices: [2, 11]
+  channel-model: tdl-a
+  delay-spread-ns: 100
+  max-doppler-hz: 0
+  snr-db: [-5, 0, 5, 10, 15]
+  num-samples: 1000
+  model-parameter-target: 50000
+  random-seed: 42
+
+output:
+  figures-dir: results/figures
+  tables-dir: results/tables
