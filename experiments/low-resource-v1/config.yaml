@@ -15,7 +15,7 @@ training:
   dropout-rate: 0.0
   epochs: 10
   batch-size: 64
-  checkpoint-path: results/checkpoints/low-resource-v1.keras
+  checkpoint-path: results/checkpoints/low-resource-v1.pt
 
 output:
   figures-dir: results/figures

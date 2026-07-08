@@ -7,7 +7,7 @@ conditions.
 [![Open the Sionna grid baseline in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/s6ii5vii/sionna-neural-ofdm-channel-estimation/blob/vibrant-ptolemy-kcxqtu/notebooks/05-colab-grid-baseline.ipynb)
 
 The Colab notebook runs the Sionna resource-grid baseline on a free GPU; it is
-the recommended way to execute the TensorFlow/Sionna paths that are not exercised
+the recommended way to execute the Sionna/PyTorch paths that are not exercised
 in CI.
 
 ## Research question
@@ -51,12 +51,12 @@ Implemented:
   grid, AWGN) and a Sionna LS-with-interpolation baseline wrapper;
 - a Sionna-backed grid dataset generator producing full resource-grid
   observation/channel pairs;
-- a small TensorFlow/Keras estimator skeleton and a deliberately small
-  convolutional full-grid estimator;
+- a small PyTorch MLP estimator and a deliberately small convolutional full-grid
+  estimator;
 - tests for datasets, metrics, LS, and LMMSE baselines.
 
 The Sionna simulation and grid-LS paths are implemented but not yet executed in
-CI (they require TensorFlow, Sionna, and ideally a GPU); run them on a suitable
+CI (they require Sionna 2.x, PyTorch, and ideally a GPU); run them on a suitable
 environment to validate before interpreting any generated results.
 
 Planned:
@@ -81,7 +81,7 @@ archive/learning-log/     original dated development notes
 
 ## Quickstart
 
-Python 3.10-3.12 is recommended for the broadest TensorFlow and Sionna
+Python 3.10-3.12 is recommended for the broadest PyTorch and Sionna
 compatibility.
 
 ```bash
@@ -104,8 +104,8 @@ Install the ML stack when working on Sionna or the neural estimator:
 python -m pip install -e ".[ml,test]"
 ```
 
-`requirements.txt` contains the complete expected environment. TensorFlow and
-Sionna can be heavy and platform-sensitive, so a supported Colab or GPU
+`requirements.txt` contains the complete expected environment. Sionna 2.x (which
+uses PyTorch) can be heavy and platform-sensitive, so a supported Colab or GPU
 environment may be preferable.
 
 ## Run the LS baseline

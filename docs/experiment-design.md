@@ -80,7 +80,7 @@ portion.
 2. Store experiment settings in versioned YAML files.
 3. Record random seeds and output paths.
 4. Generate figures and CSV tables from experiment runners.
-5. Test small known cases independently of TensorFlow and Sionna.
+5. Test small known cases independently of PyTorch and Sionna.
 6. Record environment details for any reported result.
 7. Avoid manual edits to generated result tables.
 8. Add repeated-seed evaluation before drawing scientific conclusions.

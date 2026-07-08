@@ -8,9 +8,9 @@ resource grid rather than at isolated pilot locations.
 
 design notes
 ------------
-* sionna and tensorflow are imported lazily inside each function so the
-  numpy-only baseline, metrics, dataset-split, and config code remain importable
-  and testable without the heavy ml stack installed.
+* sionna (which uses PyTorch in 2.x) is imported lazily inside each function so
+  the numpy-only baseline, metrics, dataset-split, and config code remain
+  importable and testable without the heavy ml stack installed.
 * sionna 1.x exposes its link-level (physical-layer) api under ``sionna.phy``.
   the symbol names used here target that layout; pin an exact sionna version and
   verify against it, because module paths shifted across the 0.x -> 1.x change.
@@ -18,7 +18,7 @@ design notes
   transmit/receive dimensions squeezed out, so downstream code sees channel and
   observation grids shaped ``(batch, num-ofdm-symbols, num-subcarriers)``.
 
-this file has not been executed in this environment (no tensorflow/sionna/gpu
+this file has not been executed in this environment (no sionna/torch/gpu
 available here); treat it as implemented-but-unverified until run on a machine
 with the ml stack.
 """
@@ -163,17 +163,18 @@ def simulate_grid_tensors(
         raise ValueError("batch_size must be a positive integer.")
 
     try:
-        import tensorflow as tf
+        from sionna.phy import config
         from sionna.phy.channel import ApplyOFDMChannel, GenerateOFDMChannel
         from sionna.phy.mapping import QAMSource
         from sionna.phy.ofdm import ResourceGridMapper
     except ImportError as exc:  # pragma: no cover - requires ml stack
         raise ImportError(
-            "tensorflow and sionna are required for simulation. install the 'ml' "
-            "extra or use requirements.txt."
+            "sionna is required for simulation. install the 'ml' extra or use "
+            "requirements.txt."
         ) from exc
 
-    tf.random.set_seed(seed)
+    # sionna 2.x seeds python, numpy, and torch generators from this one value.
+    config.seed = seed
 
     resource_grid = build_resource_grid(spec)
     channel_model = build_channel_model(spec)
@@ -213,6 +214,17 @@ def simulate_grid(
     return _squeeze_grid(y), _squeeze_grid(h_freq), no
 
 
+def to_numpy(tensor: Any) -> NDArray[Any]:
+    """Convert a torch tensor (or array-like) to a detached numpy array.
+
+    sionna 2.x returns torch tensors that may carry gradients or live on a gpu,
+    so they must be detached and moved to the cpu before ``numpy()``.
+    """
+    if hasattr(tensor, "detach"):
+        return tensor.detach().cpu().numpy()
+    return np.asarray(tensor)
+
+
 def _squeeze_grid(tensor: Any) -> NDArray[np.complexfloating]:
     """Reduce a single-antenna sionna grid tensor to ``(batch, symbols, sc)``.
 
@@ -222,7 +234,7 @@ def _squeeze_grid(tensor: Any) -> NDArray[np.complexfloating]:
     fft-size)``. with a single antenna on each side every leading pair collapses
     to one, leaving the batch and the two grid axes.
     """
-    array = np.asarray(tensor)
+    array = to_numpy(tensor)
     if array.ndim < 3:
         raise ValueError("expected a sionna grid tensor with at least three axes.")
     batch = array.shape[0]

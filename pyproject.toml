@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = ["tensorflow>=2.15", "sionna>=1.0"]
+ml = ["sionna>=2.0", "torch>=2.4"]
 test = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]
