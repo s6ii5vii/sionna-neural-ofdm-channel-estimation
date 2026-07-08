@@ -43,7 +43,10 @@ Implemented:
   unit-tested);
 - a Sionna OFDM resource-grid simulation module (TDL/Rayleigh fading, pilot
   grid, AWGN) and a Sionna LS-with-interpolation baseline wrapper;
-- a small TensorFlow/Keras estimator skeleton;
+- a Sionna-backed grid dataset generator producing full resource-grid
+  observation/channel pairs;
+- a small TensorFlow/Keras estimator skeleton and a deliberately small
+  convolutional full-grid estimator;
 - tests for datasets, metrics, LS, and LMMSE baselines.
 
 The Sionna simulation and grid-LS paths are implemented but not yet executed in
@@ -53,8 +56,7 @@ environment to validate before interpreting any generated results.
 Planned:
 
 - validated full OFDM resource-grid experiments in Sionna;
-- a convolutional full-grid neural estimator over the resource grid;
-- neural training and controlled ablations;
+- neural training on the grid dataset and controlled ablations;
 - BER evaluation through an end-to-end link;
 - runtime and parameter-count reporting.
 
