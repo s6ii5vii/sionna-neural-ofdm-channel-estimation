@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+if TYPE_CHECKING:
+    from .sionna_ofdm import GridSpec
 
 from .ofdm import (
     generate_pilot_symbols,
@@ -47,8 +50,14 @@ def load_npz_dataset(
 
 
 def validate_split_dataset(dataset: Mapping[str, ArrayLike]) -> None:
-    """Validate shapes for the standard train, validation, and test arrays."""
-    expected_feature_shape: tuple[int, int] | None = None
+    """Validate shapes for the standard train, validation, and test arrays.
+
+    both the original flat pilot representation ``(samples, pilots, 2)`` and the
+    ofdm resource-grid representation ``(samples, ofdm-symbols, subcarriers, 2)``
+    are accepted; the only fixed requirement is a trailing real/imaginary axis of
+    length two and consistent feature dimensions across all splits.
+    """
+    expected_feature_shape: tuple[int, ...] | None = None
     for split, label in (
         ("train", "training"),
         ("val", "validation"),
@@ -58,8 +67,11 @@ def validate_split_dataset(dataset: Mapping[str, ArrayLike]) -> None:
         targets = np.asarray(dataset[f"y_{split}"])
         if inputs.shape != targets.shape:
             raise ValueError(f"Input and target shapes differ for the {label} split.")
-        if inputs.ndim != 3 or inputs.shape[-1] != 2:
-            raise ValueError(f"The {label} split must have shape (samples, pilots, 2).")
+        if inputs.ndim not in (3, 4) or inputs.shape[-1] != 2:
+            raise ValueError(
+                f"The {label} split must end in a real/imaginary axis of length 2 "
+                "and be a flat pilot or ofdm-grid representation."
+            )
         if inputs.shape[0] == 0:
             raise ValueError(f"The {label} split must not be empty.")
         if not np.issubdtype(inputs.dtype, np.number) or not np.issubdtype(
@@ -154,6 +166,55 @@ def generate_synthetic_dataset(
     channels = generate_rayleigh_channel((num_samples, num_pilots), rng)
     pilots = generate_pilot_symbols(num_pilots, batch_size=num_samples)
     observations = simulate_pilot_observations(channels, pilots, snr_db, rng)
+    inputs = complex_to_features(observations).astype(dtype)
+    targets = complex_to_features(channels).astype(dtype)
+    return split_dataset(inputs, targets)
+
+
+def generate_grid_dataset(
+    spec: "GridSpec",
+    *,
+    num_samples: int = 2000,
+    snr_db: float = 10.0,
+    random_seed: int = 42,
+    batch_size: int = 256,
+    dtype: np.dtype = np.float32,
+) -> dict[str, NDArray[np.generic]]:
+    """Generate a split dataset of ofdm resource grids using Sionna.
+
+    each example is a received resource grid (input) paired with the true
+    frequency-domain channel over the full grid (target), both represented with a
+    trailing real/imaginary axis. produces arrays shaped
+    ``(samples, num-ofdm-symbols, num-subcarriers, 2)``.
+
+    this requires the ml stack (TensorFlow + Sionna); ``sionna_ofdm`` is imported
+    lazily so the rest of the dataset utilities stay usable without it. it has not
+    been executed in this environment.
+    """
+    if num_samples <= 0 or batch_size <= 0:
+        raise ValueError("num_samples and batch_size must be positive.")
+
+    from .sionna_ofdm import simulate_grid
+
+    received_batches: list[NDArray[np.complexfloating]] = []
+    channel_batches: list[NDArray[np.complexfloating]] = []
+    collected = 0
+    batch_index = 0
+    while collected < num_samples:
+        this_batch = min(batch_size, num_samples - collected)
+        received, channels, _no = simulate_grid(
+            spec,
+            snr_db,
+            batch_size=this_batch,
+            seed=random_seed + batch_index,
+        )
+        received_batches.append(received)
+        channel_batches.append(channels)
+        collected += this_batch
+        batch_index += 1
+
+    observations = np.concatenate(received_batches, axis=0)
+    channels = np.concatenate(channel_batches, axis=0)
     inputs = complex_to_features(observations).astype(dtype)
     targets = complex_to_features(channels).astype(dtype)
     return split_dataset(inputs, targets)
