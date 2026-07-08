@@ -1,7 +1,8 @@
 """Run the Sionna OFDM resource-grid LS baseline sweep.
 
-This experiment requires the ml stack (TensorFlow + Sionna) and, realistically,
-a GPU. It simulates a full OFDM resource grid over a 3GPP TDL-A channel and
+This experiment requires the ml stack (Sionna 2.x, which uses PyTorch) and,
+realistically, a GPU. It simulates a full OFDM resource grid over a TDL-A channel
+and
 compares least-squares estimation with nearest and linear interpolation.
 """
 

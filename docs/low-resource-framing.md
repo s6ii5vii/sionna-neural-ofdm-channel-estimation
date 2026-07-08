@@ -39,9 +39,10 @@ use. A model is not lightweight merely because it has a short implementation.
 
 ## Lightweight model size
 
-The initial Keras skeleton uses one hidden dense layer and exposes its width as
-a configuration value. The first profile sets a parameter-count target rather
-than claiming the current architecture already meets a deployment requirement.
+The initial PyTorch estimators (a one-hidden-layer MLP and a small convolutional
+grid network) expose their width as a configuration value. The first profile sets
+a parameter-count target rather than claiming the current architecture already
+meets a deployment requirement.
 
 ## Changing channel conditions
 

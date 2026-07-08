@@ -1,4 +1,19 @@
-"""Lightweight neural estimator model definitions."""
+"""Lightweight neural estimator model definitions (PyTorch).
+
+two estimators are provided:
+
+* ``build_lightweight_estimator`` -- a small multilayer perceptron over the flat
+  pilot representation ``(num_pilots, 2)``.
+* ``build_grid_estimator`` -- a deliberately small convolutional network that maps
+  a received ofdm resource grid ``(num_ofdm_symbols, num_subcarriers, 2)`` to a
+  full-grid channel estimate of the same shape.
+
+both accept and return tensors with a trailing real/imaginary axis so they match
+the numpy ``.npz`` datasets directly; the channels-first permutation that PyTorch
+convolutions expect happens inside the modules. torch is imported lazily so the
+classical baseline, metrics, dataset, and config code stay usable without the ml
+stack. these modules have not been executed in this environment.
+"""
 
 from __future__ import annotations
 
@@ -7,17 +22,38 @@ from numbers import Real
 from typing import Any
 
 
+def _validate_common(dropout_rate: float) -> None:
+    if (
+        not isinstance(dropout_rate, Real)
+        or isinstance(dropout_rate, bool)
+        or not math.isfinite(dropout_rate)
+        or not 0 <= dropout_rate < 1
+    ):
+        raise ValueError("dropout_rate must be in [0, 1).")
+
+
+def _import_torch() -> Any:
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "PyTorch is required for the neural estimator. Install the project "
+            "with the 'ml' extra or use requirements.txt."
+        ) from exc
+    return torch
+
+
 def build_lightweight_estimator(
     num_pilots: int,
     *,
     hidden_units: int = 64,
     dropout_rate: float = 0.0,
 ) -> Any:
-    """Build a deliberately small Keras estimator for real/imaginary features.
+    """Build a deliberately small MLP estimator for real/imaginary features.
 
-    This is an experimental baseline skeleton, not a claim of novelty or
-    state-of-the-art performance. TensorFlow is imported lazily so classical
-    experiments and unit tests do not require the ML stack.
+    returns a ``torch.nn.Module`` accepting ``(batch, num_pilots, 2)`` and
+    returning the same shape. this is an experimental baseline, not a claim of
+    novelty or state-of-the-art performance.
     """
     if (
         not isinstance(num_pilots, int)
@@ -28,30 +64,28 @@ def build_lightweight_estimator(
         or hidden_units <= 0
     ):
         raise ValueError("num_pilots and hidden_units must be positive integers.")
-    if (
-        not isinstance(dropout_rate, Real)
-        or isinstance(dropout_rate, bool)
-        or not math.isfinite(dropout_rate)
-        or not 0 <= dropout_rate < 1
-    ):
-        raise ValueError("dropout_rate must be in [0, 1).")
+    _validate_common(dropout_rate)
 
-    try:
-        from tensorflow import keras
-    except ImportError as exc:
-        raise ImportError(
-            "TensorFlow is required for the neural estimator. "
-            "Install the project with the 'ml' extra or use requirements.txt."
-        ) from exc
+    torch = _import_torch()
+    nn = torch.nn
 
-    inputs = keras.Input(shape=(num_pilots, 2), name="received_pilots")
-    x = keras.layers.Flatten()(inputs)
-    x = keras.layers.Dense(hidden_units, activation="relu")(x)
-    if dropout_rate:
-        x = keras.layers.Dropout(dropout_rate)(x)
-    outputs = keras.layers.Dense(num_pilots * 2)(x)
-    outputs = keras.layers.Reshape((num_pilots, 2), name="channel_estimate")(outputs)
-    return keras.Model(inputs=inputs, outputs=outputs, name="lightweight_estimator")
+    class LightweightEstimator(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.num_pilots = num_pilots
+            self.flatten = nn.Flatten()
+            self.hidden = nn.Linear(num_pilots * 2, hidden_units)
+            self.activation = nn.ReLU()
+            self.dropout = nn.Dropout(dropout_rate) if dropout_rate else nn.Identity()
+            self.output = nn.Linear(hidden_units, num_pilots * 2)
+
+        def forward(self, x: Any) -> Any:  # x: (batch, num_pilots, 2)
+            batch = x.shape[0]
+            h = self.activation(self.hidden(self.flatten(x)))
+            h = self.dropout(h)
+            return self.output(h).reshape(batch, self.num_pilots, 2)
+
+    return LightweightEstimator()
 
 
 def build_grid_estimator(
@@ -64,17 +98,15 @@ def build_grid_estimator(
 ) -> Any:
     """Build a deliberately small convolutional estimator over a resource grid.
 
-    the network maps a received grid ``(num_ofdm_symbols, num_subcarriers, 2)`` to
-    a full-grid channel estimate of the same shape. a stack of ``same``-padded
-    convolutions with no downsampling keeps the time-frequency resolution while
-    letting the model interpolate the channel across non-pilot resource elements.
-    ``filters`` is the per-layer width and is the primary knob for meeting a
-    parameter-count budget; keep it small to stay lightweight.
+    returns a ``torch.nn.Module`` mapping a received grid
+    ``(batch, num_ofdm_symbols, num_subcarriers, 2)`` to a full-grid channel
+    estimate of the same shape. a stack of ``same``-padded convolutions with no
+    downsampling preserves the time-frequency resolution while letting the model
+    interpolate the channel across non-pilot resource elements. ``filters`` is
+    the per-layer width and the primary knob for a parameter-count budget.
 
     this is an experimental baseline, not a claim of novelty or state-of-the-art
-    performance, and it has not been executed in this environment. TensorFlow is
-    imported lazily so classical experiments and unit tests do not require the ml
-    stack.
+    performance, and it has not been executed in this environment.
     """
     if (
         not isinstance(num_ofdm_symbols, int)
@@ -94,37 +126,35 @@ def build_grid_estimator(
             "num_ofdm_symbols, num_subcarriers, filters, and num_layers must be "
             "positive integers."
         )
-    if (
-        not isinstance(dropout_rate, Real)
-        or isinstance(dropout_rate, bool)
-        or not math.isfinite(dropout_rate)
-        or not 0 <= dropout_rate < 1
-    ):
-        raise ValueError("dropout_rate must be in [0, 1).")
+    _validate_common(dropout_rate)
 
-    try:
-        from tensorflow import keras
-    except ImportError as exc:
-        raise ImportError(
-            "TensorFlow is required for the neural estimator. "
-            "Install the project with the 'ml' extra or use requirements.txt."
-        ) from exc
+    torch = _import_torch()
+    nn = torch.nn
 
-    inputs = keras.Input(
-        shape=(num_ofdm_symbols, num_subcarriers, 2), name="received_grid"
-    )
-    x = inputs
-    for index in range(num_layers):
-        x = keras.layers.Conv2D(
-            filters,
-            kernel_size=3,
-            padding="same",
-            activation="relu",
-            name=f"conv-{index}",
-        )(x)
-        if dropout_rate:
-            x = keras.layers.Dropout(dropout_rate)(x)
-    outputs = keras.layers.Conv2D(
-        2, kernel_size=3, padding="same", name="channel_estimate"
-    )(x)
-    return keras.Model(inputs=inputs, outputs=outputs, name="grid_estimator")
+    class GridEstimator(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            layers: list[Any] = []
+            in_channels = 2
+            for _ in range(num_layers):
+                layers.append(
+                    nn.Conv2d(in_channels, filters, kernel_size=3, padding=1)
+                )
+                layers.append(nn.ReLU())
+                if dropout_rate:
+                    layers.append(nn.Dropout(dropout_rate))
+                in_channels = filters
+            layers.append(nn.Conv2d(in_channels, 2, kernel_size=3, padding=1))
+            self.net = nn.Sequential(*layers)
+
+        def forward(self, x: Any) -> Any:  # x: (batch, symbols, subcarriers, 2)
+            x = x.permute(0, 3, 1, 2)  # -> (batch, 2, symbols, subcarriers)
+            y = self.net(x)
+            return y.permute(0, 2, 3, 1)  # -> (batch, symbols, subcarriers, 2)
+
+    return GridEstimator()
+
+
+def count_parameters(model: Any) -> int:
+    """Return the number of trainable parameters in a torch module."""
+    return int(sum(p.numel() for p in model.parameters() if p.requires_grad))

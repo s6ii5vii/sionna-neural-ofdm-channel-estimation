@@ -49,9 +49,10 @@ documented and validated.
 
 ## Neural estimator
 
-The initial Keras model flattens real/imaginary pilot features, applies one small
-hidden dense layer, and predicts channel features. Architecture selection,
-parameter counts, training protocol, and ablations remain to be completed.
+The PyTorch MLP flattens real/imaginary pilot features, applies one small hidden
+layer, and predicts channel features; a small convolutional network estimates the
+channel across a full resource grid. Architecture selection, parameter counts,
+training protocol, and ablations remain to be completed.
 
 ## Experiments
 

@@ -1,4 +1,13 @@
-"""Minimal configuration-driven training entry point."""
+"""Configuration-driven training entry point (PyTorch).
+
+trains either the flat MLP or the convolutional grid estimator, selected
+automatically from the rank of the dataset, then writes a report next to the
+checkpoint recording test NMSE and lightweight-deployment resource metrics
+(parameter count, serialized size, and per-example latency).
+
+torch is imported lazily so the classical utilities remain usable without it.
+this module has not been executed in this environment.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +22,7 @@ import numpy as np
 from .config import load_config, resolve_path
 from .dataset import features_to_complex, load_npz_dataset
 from .metrics import normalized_mean_squared_error
-from .models import build_grid_estimator, build_lightweight_estimator
+from .models import build_grid_estimator, build_lightweight_estimator, count_parameters
 
 
 def _build_model(data: dict[str, Any], training: dict[str, Any]) -> Any:
@@ -37,28 +46,42 @@ def _build_model(data: dict[str, Any], training: dict[str, Any]) -> Any:
     )
 
 
+def _loader(torch: Any, x: Any, y: Any, batch_size: int, shuffle: bool) -> Any:
+    dataset = torch.utils.data.TensorDataset(
+        torch.as_tensor(np.asarray(x), dtype=torch.float32),
+        torch.as_tensor(np.asarray(y), dtype=torch.float32),
+    )
+    return torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=shuffle
+    )
+
+
 def _resource_report(
-    model: Any, x_test: Any, y_test: Any, checkpoint: Path
+    torch: Any, model: Any, data: dict[str, Any], checkpoint: Path, device: Any
 ) -> dict[str, float]:
     """Measure test NMSE plus lightweight-deployment resource metrics."""
-    predictions = model.predict(x_test, verbose=0)
+    model.eval()
+    x_test = torch.as_tensor(np.asarray(data["x_test"]), dtype=torch.float32)
+    with torch.no_grad():
+        predictions = model(x_test.to(device)).cpu().numpy()
+
     test_nmse = normalized_mean_squared_error(
-        features_to_complex(np.asarray(y_test)),
-        features_to_complex(np.asarray(predictions)),
+        features_to_complex(np.asarray(data["y_test"])),
+        features_to_complex(predictions),
     )
+
     # time a forward pass on the test split for a latency estimate.
-    start = time.perf_counter()
-    model.predict(x_test, verbose=0)
-    elapsed = time.perf_counter() - start
-    num_examples = int(np.asarray(x_test).shape[0])
+    with torch.no_grad():
+        start = time.perf_counter()
+        model(x_test.to(device))
+        elapsed = time.perf_counter() - start
+
+    num_examples = int(x_test.shape[0])
     checkpoint = Path(checkpoint)
-    if checkpoint.is_dir():
-        size_bytes = sum(f.stat().st_size for f in checkpoint.rglob("*") if f.is_file())
-    else:
-        size_bytes = checkpoint.stat().st_size
+    size_bytes = checkpoint.stat().st_size if checkpoint.is_file() else 0
     return {
         "test-nmse": float(test_nmse),
-        "parameter-count": int(model.count_params()),
+        "parameter-count": count_parameters(model),
         "serialized-size-bytes": int(size_bytes),
         "latency-ms-per-example": float(1000.0 * elapsed / max(num_examples, 1)),
     }
@@ -70,24 +93,53 @@ def train_model(config: dict[str, Any]) -> Path:
     if not isinstance(training, dict):
         raise ValueError("The config needs a 'training' mapping for model training.")
 
+    try:
+        import torch
+    except ImportError as exc:
+        raise ImportError(
+            "PyTorch is required for training. Install the 'ml' extra or use "
+            "requirements.txt."
+        ) from exc
+
     dataset_path = resolve_path(config, training["dataset-path"])
     data = load_npz_dataset(dataset_path)
-    model = _build_model(data, training)
-    model.compile(optimizer="adam", loss="mse")
-    model.fit(
-        data["x_train"],
-        data["y_train"],
-        validation_data=(data["x_val"], data["y_val"]),
-        epochs=int(training["epochs"]),
-        batch_size=int(training["batch-size"]),
-        verbose=2,
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = _build_model(data, training).to(device)
+    optimizer = torch.optim.Adam(model.parameters())
+    loss_fn = torch.nn.MSELoss()
+
+    batch_size = int(training["batch-size"])
+    train_loader = _loader(
+        torch, data["x_train"], data["y_train"], batch_size, shuffle=True
     )
+    val_loader = _loader(
+        torch, data["x_val"], data["y_val"], batch_size, shuffle=False
+    )
+
+    for epoch in range(int(training["epochs"])):
+        model.train()
+        for inputs, targets in train_loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            optimizer.zero_grad()
+            loss = loss_fn(model(inputs), targets)
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                val_loss += loss_fn(model(inputs), targets).item() * inputs.shape[0]
+        val_loss /= max(len(val_loader.dataset), 1)
+        print(f"epoch {epoch + 1}: val_loss={val_loss:.6f}")
 
     checkpoint = resolve_path(config, training["checkpoint-path"])
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
-    model.save(checkpoint)
+    torch.save(model.state_dict(), checkpoint)
 
-    report = _resource_report(model, data["x_test"], data["y_test"], checkpoint)
+    report = _resource_report(torch, model, data, checkpoint, device)
     report_path = checkpoint.with_suffix(".report.json")
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return checkpoint

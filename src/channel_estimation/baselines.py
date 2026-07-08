@@ -109,8 +109,8 @@ def grid_ls_estimate(
     ``ResourceGrid``. ``interpolation_type`` is ``"nn"`` (nearest) or ``"lin"``
     (linear). returns a numpy array; not executed in this environment.
     """
-    if interpolation_type not in ("nn", "lin"):
-        raise ValueError("interpolation_type must be 'nn' or 'lin'.")
+    if interpolation_type not in ("nn", "lin", "lin_time_avg"):
+        raise ValueError("interpolation_type must be 'nn', 'lin', or 'lin_time_avg'.")
     try:
         from sionna.phy.ofdm import LSChannelEstimator
     except ImportError as exc:  # pragma: no cover - requires ml stack
@@ -119,8 +119,10 @@ def grid_ls_estimate(
             "'ml' extra or use requirements.txt."
         ) from exc
 
+    from .sionna_ofdm import to_numpy
+
     estimator = LSChannelEstimator(
         resource_grid, interpolation_type=interpolation_type
     )
     h_hat, _err_var = estimator(received_grid, noise_power)
-    return np.asarray(h_hat)
+    return to_numpy(h_hat)

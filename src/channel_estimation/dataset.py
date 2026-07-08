@@ -187,9 +187,9 @@ def generate_grid_dataset(
     trailing real/imaginary axis. produces arrays shaped
     ``(samples, num-ofdm-symbols, num-subcarriers, 2)``.
 
-    this requires the ml stack (TensorFlow + Sionna); ``sionna_ofdm`` is imported
-    lazily so the rest of the dataset utilities stay usable without it. it has not
-    been executed in this environment.
+    this requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm``
+    is imported lazily so the rest of the dataset utilities stay usable without
+    it. it has not been executed in this environment.
     """
     if num_samples <= 0 or batch_size <= 0:
         raise ValueError("num_samples and batch_size must be positive.")
