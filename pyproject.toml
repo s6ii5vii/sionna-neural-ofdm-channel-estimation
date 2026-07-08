@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Setor"}]
 dependencies = [
-  "numpy>=1.26",
+  "numpy>=1.26,<2.1",
   "matplotlib>=3.8",
   "PyYAML>=6.0",
 ]
