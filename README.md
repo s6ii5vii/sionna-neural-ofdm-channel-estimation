@@ -4,6 +4,12 @@ An early-stage reproducible research software project for evaluating classical
 and lightweight neural channel estimators under constrained wireless
 conditions.
 
+[![Open the Sionna grid baseline in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/s6ii5vii/sionna-neural-ofdm-channel-estimation/blob/vibrant-ptolemy-kcxqtu/notebooks/05-colab-grid-baseline.ipynb)
+
+The Colab notebook runs the Sionna resource-grid baseline on a free GPU; it is
+the recommended way to execute the TensorFlow/Sionna paths that are not exercised
+in CI.
+
 ## Research question
 
 Can a lightweight neural estimator improve pilot-based OFDM channel estimation
