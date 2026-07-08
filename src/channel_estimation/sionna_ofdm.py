@@ -26,7 +26,7 @@ with the ml stack.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
 from numpy.typing import NDArray
@@ -76,6 +76,18 @@ class GridSpec:
             raise ValueError("delay_spread_ns must be a positive finite value.")
         if not np.isfinite(self.max_doppler_hz) or self.max_doppler_hz < 0:
             raise ValueError("max_doppler_hz must be a non-negative finite value.")
+
+    @classmethod
+    def from_experiment(cls, experiment: Mapping[str, Any]) -> "GridSpec":
+        """Build a spec from a validated grid ``experiment`` config mapping."""
+        return cls(
+            num_subcarriers=int(experiment["num-subcarriers"]),
+            num_ofdm_symbols=int(experiment["num-ofdm-symbols"]),
+            pilot_ofdm_symbol_indices=tuple(experiment["pilot-ofdm-symbol-indices"]),
+            channel_kind=str(experiment.get("channel-model", "tdl-a")),
+            delay_spread_ns=float(experiment.get("delay-spread-ns", 100.0)),
+            max_doppler_hz=float(experiment.get("max-doppler-hz", 0.0)),
+        )
 
 
 def build_resource_grid(spec: GridSpec) -> Any:
@@ -133,19 +145,19 @@ def _doppler_to_speed(max_doppler_hz: float, carrier_frequency_hz: float) -> flo
     return float(max_doppler_hz * speed_of_light / carrier_frequency_hz)
 
 
-def simulate_grid(
+def simulate_grid_tensors(
     spec: GridSpec,
     snr_db: float,
     *,
     batch_size: int,
     seed: int,
-) -> tuple[NDArray[np.complexfloating], NDArray[np.complexfloating], float]:
-    """Simulate one batch of received grids and matching true channels.
+) -> tuple[Any, Any, float, Any]:
+    """Simulate one batch and return the raw sionna tensors and resource grid.
 
-    returns ``(y, h_true, no)`` where ``y`` and ``h_true`` are complex arrays of
-    shape ``(batch, num-ofdm-symbols, num-subcarriers)`` and ``no`` is the linear
-    noise power used for the awgn. random qam data occupies the non-pilot
-    resource elements so the observation is a realistic mixed data/pilot grid.
+    returns ``(y, h_freq, no, resource_grid)`` where ``y`` and ``h_freq`` keep
+    their native sionna shapes so they can be fed to ``LSChannelEstimator``.
+    random qam data occupies the non-pilot resource elements so the observation
+    is a realistic mixed data/pilot grid.
     """
     if not isinstance(batch_size, int) or batch_size <= 0:
         raise ValueError("batch_size must be a positive integer.")
@@ -172,16 +184,33 @@ def simulate_grid(
     apply_channel = ApplyOFDMChannel(add_awgn=True)
 
     # random payload symbols on the data-carrying resource elements.
-    data = qam_source(
-        [batch_size, 1, 1, resource_grid.num_data_symbols]
-    )
+    data = qam_source([batch_size, 1, 1, resource_grid.num_data_symbols])
     x_rg = rg_mapper(data)
 
     h_freq = generate_channel(batch_size)
     no = noise_power_from_snr(float(snr_db))
     y = apply_channel(x_rg, h_freq, no)
 
-    return _squeeze_grid(y), _squeeze_grid(h_freq), float(no)
+    return y, h_freq, float(no), resource_grid
+
+
+def simulate_grid(
+    spec: GridSpec,
+    snr_db: float,
+    *,
+    batch_size: int,
+    seed: int,
+) -> tuple[NDArray[np.complexfloating], NDArray[np.complexfloating], float]:
+    """Simulate one batch of received grids and matching true channels.
+
+    returns ``(y, h_true, no)`` where ``y`` and ``h_true`` are complex arrays of
+    shape ``(batch, num-ofdm-symbols, num-subcarriers)`` and ``no`` is the linear
+    noise power used for the awgn.
+    """
+    y, h_freq, no, _resource_grid = simulate_grid_tensors(
+        spec, snr_db, batch_size=batch_size, seed=seed
+    )
+    return _squeeze_grid(y), _squeeze_grid(h_freq), no
 
 
 def _squeeze_grid(tensor: Any) -> NDArray[np.complexfloating]:

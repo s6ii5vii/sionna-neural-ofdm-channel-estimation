@@ -48,16 +48,20 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if not all(_is_finite_number(value) for value in snr_values):
         raise ConfigError("Every SNR value must be a finite number.")
 
-    for key in ("num-samples", "num-pilots", "random-seed"):
+    for key in ("num-samples", "random-seed"):
         value = experiment.get(key)
         if not isinstance(value, int) or isinstance(value, bool):
             raise ConfigError(f"'experiment.{key}' must be an integer.")
         if key != "random-seed" and value <= 0:
             raise ConfigError(f"'experiment.{key}' must be positive.")
 
-    pilot_density = experiment.get("pilot-density", 1.0)
-    if not _is_finite_number(pilot_density) or not 0 < pilot_density <= 1:
-        raise ConfigError("'experiment.pilot-density' must be in (0, 1].")
+    # two experiment shapes are supported: the original flat pilot model and the
+    # sionna ofdm resource-grid model. presence of 'num-subcarriers' selects the
+    # grid schema.
+    if "num-subcarriers" in experiment:
+        _validate_grid_experiment(experiment)
+    else:
+        _validate_flat_experiment(experiment)
 
     for key in ("dataset-size-target", "model-parameter-target"):
         value = experiment.get(key)
@@ -76,6 +80,59 @@ def validate_config(config: Mapping[str, Any]) -> None:
     training = config.get("training")
     if training is not None:
         _validate_training_config(training)
+
+
+_VALID_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c", "tdl-d", "tdl-e", "rayleigh")
+
+
+def _require_positive_int(experiment: Mapping[str, Any], key: str) -> int:
+    value = experiment.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ConfigError(f"'experiment.{key}' must be a positive integer.")
+    return value
+
+
+def _validate_flat_experiment(experiment: Mapping[str, Any]) -> None:
+    """Validate the original flat pilot-observation experiment schema."""
+    _require_positive_int(experiment, "num-pilots")
+    pilot_density = experiment.get("pilot-density", 1.0)
+    if not _is_finite_number(pilot_density) or not 0 < pilot_density <= 1:
+        raise ConfigError("'experiment.pilot-density' must be in (0, 1].")
+
+
+def _validate_grid_experiment(experiment: Mapping[str, Any]) -> None:
+    """Validate the sionna ofdm resource-grid experiment schema."""
+    _require_positive_int(experiment, "num-subcarriers")
+    num_ofdm_symbols = _require_positive_int(experiment, "num-ofdm-symbols")
+
+    pilot_indices = experiment.get("pilot-ofdm-symbol-indices")
+    if not isinstance(pilot_indices, list) or not pilot_indices:
+        raise ConfigError(
+            "'experiment.pilot-ofdm-symbol-indices' must be a non-empty list."
+        )
+    if any(
+        not isinstance(index, int)
+        or isinstance(index, bool)
+        or not 0 <= index < num_ofdm_symbols
+        for index in pilot_indices
+    ):
+        raise ConfigError(
+            "Every pilot symbol index must be an integer within the grid."
+        )
+
+    channel_model = experiment.get("channel-model", "tdl-a")
+    if channel_model not in _VALID_CHANNEL_MODELS:
+        raise ConfigError(
+            f"'experiment.channel-model' must be one of {_VALID_CHANNEL_MODELS}."
+        )
+
+    delay_spread = experiment.get("delay-spread-ns", 100.0)
+    if not _is_finite_number(delay_spread) or delay_spread <= 0:
+        raise ConfigError("'experiment.delay-spread-ns' must be positive.")
+
+    max_doppler = experiment.get("max-doppler-hz", 0.0)
+    if not _is_finite_number(max_doppler) or max_doppler < 0:
+        raise ConfigError("'experiment.max-doppler-hz' must be non-negative.")
 
 
 def _is_finite_number(value: object) -> bool:
