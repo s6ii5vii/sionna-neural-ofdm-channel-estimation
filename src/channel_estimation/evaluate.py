@@ -55,10 +55,10 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
     estimates the full-grid channel with least squares plus nearest and linear
     interpolation, reporting NMSE against the true frequency-domain channel.
 
-    requires the ml stack (TensorFlow + Sionna); ``sionna_ofdm`` is imported
-    lazily. not executed in this environment.
+    requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm`` is
+    imported lazily. not executed in this environment.
     """
-    from .sionna_ofdm import GridSpec, simulate_grid_tensors
+    from .sionna_ofdm import GridSpec, simulate_grid_tensors, to_numpy
 
     experiment = config["experiment"]
     spec = GridSpec.from_experiment(experiment)
@@ -70,7 +70,7 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
         y, h_freq, no, resource_grid = simulate_grid_tensors(
             spec, float(snr_db), batch_size=num_samples, seed=seed
         )
-        h_freq_np = np.asarray(h_freq)
+        h_freq_np = to_numpy(h_freq)
         for interpolation in ("nn", "lin"):
             h_hat = grid_ls_estimate(
                 y, no, resource_grid, interpolation_type=interpolation
@@ -79,7 +79,7 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
                 {
                     "estimator": f"ls-{interpolation}",
                     "snr-db": float(snr_db),
-                    "nmse": normalized_mean_squared_error(h_freq_np, np.asarray(h_hat)),
+                    "nmse": normalized_mean_squared_error(h_freq_np, h_hat),
                     "num-samples": int(num_samples),
                 }
             )

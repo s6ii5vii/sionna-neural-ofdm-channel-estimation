@@ -40,12 +40,11 @@ def test_grid_spec_rejects_non_positive_delay_spread():
         make_spec(delay_spread_ns=0.0)
 
 
-# the simulation itself requires the ml stack (tensorflow + sionna) and,
-# realistically, a gpu; skip cleanly where those are unavailable so the fast
+# the simulation itself requires the ml stack (sionna 2.x, which uses pytorch)
+# and, realistically, a gpu; skip cleanly where those are unavailable so the fast
 # numpy suite stays green everywhere.
 def test_simulate_grid_shapes():
     pytest.importorskip("sionna")
-    pytest.importorskip("tensorflow")
     spec = make_spec()
     y, h_true, no = simulate_grid(spec, snr_db=10.0, batch_size=4, seed=0)
     expected = (4, spec.num_ofdm_symbols, spec.num_subcarriers)
