@@ -7,6 +7,8 @@ experiment engine.
 2. `02-ls-baseline-demo.ipynb` demonstrates LS estimation and NMSE.
 3. `03-dataset-exploration.ipynb` inspects the committed sample dataset.
 4. `04-low-resource-experiment-demo.ipynb` examines the first constrained profile.
+5. `05-colab-grid-baseline.ipynb` runs the Sionna resource-grid baseline on a
+   Colab GPU (clone, install, verify the `sionna.phy` API, test, and sweep).
 
 Run `python -m pip install -e .` from the repository root before opening them.
 Reusable logic belongs in `src/channel_estimation/`; reproducible sweeps belong
