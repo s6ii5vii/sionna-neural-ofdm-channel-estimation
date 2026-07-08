@@ -122,6 +122,32 @@ python experiments/low-resource-v1/run-experiment.py
 The sparse-pilot profile currently evaluates only selected pilot locations. It
 does not yet reconstruct unobserved subcarriers.
 
+## Run the Sionna grid baseline
+
+The grid experiment simulates a full OFDM resource grid over a 3GPP TDL-A
+channel and compares least-squares estimation with nearest and linear
+interpolation across the whole grid. It requires the ml stack and, realistically,
+a GPU:
+
+```bash
+python -m pip install -e ".[ml]"
+python experiments/grid-tdl-v1/run-experiment.py
+```
+
+It writes `results/tables/grid-tdl-v1.csv` and a per-estimator NMSE-vs-SNR
+figure. These Sionna paths are implemented but have not been executed in CI;
+validate them on a suitable environment before interpreting the outputs.
+
+Neural training (grid CNN or flat MLP, selected automatically from the dataset
+rank) runs through:
+
+```bash
+python -m channel_estimation.train experiments/low-resource-v1/config.yaml
+```
+
+Training additionally writes a `*.report.json` next to the checkpoint recording
+test NMSE, parameter count, serialized model size, and per-example latency.
+
 ## Inspect or regenerate the dataset
 
 ```python

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping, Sequence, Tuple
 
 
 def _save_curve(
@@ -46,6 +46,36 @@ def save_nmse_vs_snr(
         output_path=output_path,
         logarithmic_y=True,
     )
+
+
+def save_nmse_comparison(
+    series: Mapping[str, Tuple[Sequence[float], Sequence[float]]],
+    output_path: str | Path,
+    *,
+    title: str = "Channel Estimation NMSE vs SNR",
+) -> Path:
+    """Save one NMSE-versus-SNR curve per estimator on shared axes.
+
+    ``series`` maps an estimator label to a ``(snr_values, nmse_values)`` pair.
+    """
+    import matplotlib.pyplot as plt
+
+    if not series:
+        raise ValueError("series must contain at least one estimator.")
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(7, 4))
+    for label, (snr_values, nmse_values) in series.items():
+        axis.semilogy(list(snr_values), list(nmse_values), marker="o", label=label)
+    axis.set_xlabel("SNR (dB)")
+    axis.set_ylabel("NMSE")
+    axis.set_title(title)
+    axis.grid(True, which="both", alpha=0.35)
+    axis.legend()
+    figure.tight_layout()
+    figure.savefig(path, dpi=160)
+    plt.close(figure)
+    return path
 
 
 def save_ber_vs_snr(
