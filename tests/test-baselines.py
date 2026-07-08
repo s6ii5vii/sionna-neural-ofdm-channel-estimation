@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from channel_estimation.baselines import least_squares_estimate, lmmse_estimate
+from channel_estimation.baselines import (
+    estimate_channel_covariance,
+    least_squares_estimate,
+    lmmse_estimate,
+)
 
 
 def test_least_squares_recovers_noiseless_channel():
@@ -21,6 +25,48 @@ def test_least_squares_rejects_non_finite_pilot():
         least_squares_estimate([1 + 0j], [np.nan + 0j])
 
 
-def test_lmmse_is_explicitly_planned():
-    with pytest.raises(NotImplementedError, match="planned"):
-        lmmse_estimate()
+def test_estimate_channel_covariance_is_hermitian():
+    rng = np.random.default_rng(0)
+    channels = (
+        rng.normal(size=(2000, 4)) + 1j * rng.normal(size=(2000, 4))
+    ) / np.sqrt(2.0)
+    covariance = estimate_channel_covariance(channels)
+    assert covariance.shape == (4, 4)
+    np.testing.assert_allclose(covariance, covariance.conj().T, atol=1e-12)
+
+
+def test_estimate_channel_covariance_rejects_wrong_rank():
+    with pytest.raises(ValueError, match="num_samples, num_subcarriers"):
+        estimate_channel_covariance(np.zeros((3, 3, 3), dtype=complex))
+
+
+def test_lmmse_returns_ls_estimate_without_noise():
+    rng = np.random.default_rng(1)
+    channels = (
+        rng.normal(size=(1000, 3)) + 1j * rng.normal(size=(1000, 3))
+    ) / np.sqrt(2.0)
+    covariance = estimate_channel_covariance(channels)
+    estimate = lmmse_estimate(channels, covariance, noise_power=0.0)
+    np.testing.assert_allclose(estimate, channels, atol=1e-6)
+
+
+def test_lmmse_reduces_error_versus_ls_under_noise():
+    rng = np.random.default_rng(2)
+    # correlated channel across subcarriers so smoothing can help.
+    base = rng.normal(size=(4000, 1)) + 1j * rng.normal(size=(4000, 1))
+    channels = np.tile(base, (1, 6)) / np.sqrt(2.0)
+    covariance = estimate_channel_covariance(channels)
+    noise_power = 0.5
+    noise = np.sqrt(noise_power / 2.0) * (
+        rng.normal(size=channels.shape) + 1j * rng.normal(size=channels.shape)
+    )
+    ls_estimate = channels + noise
+    lmmse = lmmse_estimate(ls_estimate, covariance, noise_power)
+    ls_error = np.mean(np.abs(channels - ls_estimate) ** 2)
+    lmmse_error = np.mean(np.abs(channels - lmmse) ** 2)
+    assert lmmse_error < ls_error
+
+
+def test_lmmse_rejects_mismatched_covariance():
+    with pytest.raises(ValueError, match="square"):
+        lmmse_estimate(np.zeros((5, 4), dtype=complex), np.eye(3), noise_power=1.0)

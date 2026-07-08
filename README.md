@@ -39,14 +39,21 @@ Implemented:
 - NMSE and BER utilities;
 - split NPZ dataset loading, inspection, and regeneration;
 - configuration-driven LS sweeps across SNR values;
+- LMMSE estimation with an explicit, estimated channel covariance (NumPy,
+  unit-tested);
+- a Sionna OFDM resource-grid simulation module (TDL/Rayleigh fading, pilot
+  grid, AWGN) and a Sionna LS-with-interpolation baseline wrapper;
 - a small TensorFlow/Keras estimator skeleton;
-- tests for datasets, metrics, and the LS baseline.
+- tests for datasets, metrics, LS, and LMMSE baselines.
+
+The Sionna simulation and grid-LS paths are implemented but not yet executed in
+CI (they require TensorFlow, Sionna, and ideally a GPU); run them on a suitable
+environment to validate before interpreting any generated results.
 
 Planned:
 
 - validated full OFDM resource-grid experiments in Sionna;
-- interpolation or estimation across unobserved subcarriers for sparse pilots;
-- LMMSE with explicit covariance assumptions;
+- a convolutional full-grid neural estimator over the resource grid;
 - neural training and controlled ablations;
 - BER evaluation through an end-to-end link;
 - runtime and parameter-count reporting.
@@ -157,8 +164,8 @@ mapping and boundaries.
   not a complete standards-compliant link simulation.
 - The committed dataset was generated at one SNR with unit pilots.
 - No neural performance results are reported yet.
-- LMMSE is intentionally unimplemented until covariance assumptions are
-  specified.
+- LMMSE now uses a covariance matrix estimated from channel realizations; it is
+  only as good as that covariance assumption and the data it is estimated from.
 - BER is implemented as a metric utility but is not yet connected to an
   end-to-end coded OFDM receiver.
 - Generated results require validation before scientific interpretation.
