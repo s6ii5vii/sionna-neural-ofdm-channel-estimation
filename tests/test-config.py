@@ -83,3 +83,67 @@ def test_validate_config_rejects_negative_delay_spread():
     config["experiment"]["delay-spread-ns"] = -1
     with pytest.raises(ConfigError, match="delay-spread-ns"):
         validate_config(config)
+
+
+def test_validate_config_accepts_neural_block():
+    config = valid_grid_config()
+    config["neural"] = {
+        "checkpoint-path": "results/checkpoints/model.pt",
+        "filters": 16,
+        "num-layers": 3,
+    }
+    validate_config(config)
+
+
+def test_validate_config_rejects_neural_missing_checkpoint():
+    config = valid_grid_config()
+    config["neural"] = {"filters": 16, "num-layers": 3}
+    with pytest.raises(ConfigError, match="neural.checkpoint-path"):
+        validate_config(config)
+
+
+def test_validate_config_rejects_neural_non_positive_filters():
+    config = valid_grid_config()
+    config["neural"] = {
+        "checkpoint-path": "results/checkpoints/model.pt",
+        "filters": 0,
+        "num-layers": 3,
+    }
+    with pytest.raises(ConfigError, match="neural.filters"):
+        validate_config(config)
+
+
+def test_validate_config_accepts_dataset_generation_block():
+    config = valid_grid_config()
+    config["training"] = {
+        "dataset-path": "data/foo.npz",
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "hidden-units": 16,
+        "epochs": 10,
+        "batch-size": 32,
+        "num-layers": 3,
+        "dataset-generation": {
+            "num-samples": 1000,
+            "snr-db": 10.0,
+            "random-seed": 42,
+        },
+    }
+    validate_config(config)
+
+
+def test_validate_config_rejects_dataset_generation_bad_snr():
+    config = valid_grid_config()
+    config["training"] = {
+        "dataset-path": "data/foo.npz",
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "hidden-units": 16,
+        "epochs": 10,
+        "batch-size": 32,
+        "dataset-generation": {
+            "num-samples": 1000,
+            "snr-db": "not-a-number",
+            "random-seed": 42,
+        },
+    }
+    with pytest.raises(ConfigError, match="dataset-generation.snr-db"):
+        validate_config(config)

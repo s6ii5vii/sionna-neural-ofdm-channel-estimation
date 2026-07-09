@@ -20,9 +20,48 @@ from typing import Any
 import numpy as np
 
 from .config import load_config, resolve_path
-from .dataset import features_to_complex, load_npz_dataset
+from .dataset import (
+    features_to_complex,
+    generate_grid_dataset,
+    load_npz_dataset,
+    save_npz_dataset,
+)
 from .metrics import normalized_mean_squared_error
 from .models import build_grid_estimator, build_lightweight_estimator, count_parameters
+
+
+def _generate_dataset_from_config(config: dict[str, Any], dataset_path: Path) -> None:
+    """Generate the grid dataset described by the config to ``dataset_path``.
+
+    only supported for the grid experiment schema (a ``num-subcarriers`` key
+    under ``experiment``); the ``training.dataset-generation`` block supplies
+    the number of samples, snr, and random seed.
+    """
+    experiment = config.get("experiment", {})
+    if "num-subcarriers" not in experiment:
+        raise FileNotFoundError(
+            f"Dataset file not found: {dataset_path}. Automatic generation is "
+            "only supported for the grid experiment schema."
+        )
+    training = config["training"]
+    generation = training.get("dataset-generation")
+    if not generation:
+        raise FileNotFoundError(
+            f"Dataset file not found: {dataset_path}. Add a "
+            "'training.dataset-generation' block to enable automatic generation."
+        )
+
+    from .sionna_ofdm import GridSpec
+
+    spec = GridSpec.from_experiment(experiment)
+    dataset = generate_grid_dataset(
+        spec,
+        num_samples=int(generation["num-samples"]),
+        snr_db=float(generation["snr-db"]),
+        random_seed=int(generation.get("random-seed", 42)),
+    )
+    save_npz_dataset(dataset_path, dataset)
+    print(f"generated grid dataset at {dataset_path}")
 
 
 def _build_model(data: dict[str, Any], training: dict[str, Any]) -> Any:
@@ -102,6 +141,8 @@ def train_model(config: dict[str, Any]) -> Path:
         ) from exc
 
     dataset_path = resolve_path(config, training["dataset-path"])
+    if not dataset_path.is_file():
+        _generate_dataset_from_config(config, dataset_path)
     data = load_npz_dataset(dataset_path)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -140,6 +181,13 @@ def train_model(config: dict[str, Any]) -> Path:
     torch.save(model.state_dict(), checkpoint)
 
     report = _resource_report(torch, model, data, checkpoint, device)
+    report["training"] = {
+        "hidden-units": int(training["hidden-units"]),
+        "num-layers": int(training.get("num-layers", 3)),
+        "dropout-rate": float(training.get("dropout-rate", 0.0)),
+        "epochs": int(training["epochs"]),
+        "batch-size": int(training["batch-size"]),
+    }
     report_path = checkpoint.with_suffix(".report.json")
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return checkpoint

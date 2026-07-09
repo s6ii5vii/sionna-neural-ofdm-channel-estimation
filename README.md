@@ -154,6 +154,26 @@ python -m channel_estimation.train experiments/low-resource-v1/config.yaml
 Training additionally writes a `*.report.json` next to the checkpoint recording
 test NMSE, parameter count, serialized model size, and per-example latency.
 
+## Compare the CNN against least squares (LS)
+
+`experiments/grid-neural-comparison-v1/` is a single-configuration
+head-to-head comparison of LS with nearest-neighbor interpolation (ls-nn), LS
+with linear interpolation (ls-lin), and a small CNN. The config has three
+sections: `experiment` (the shared resource-grid and channel), `training` (the
+CNN training loop and an optional `dataset-generation` block that lets training
+auto-create the grid dataset if it does not already exist), and `neural` (the
+checkpoint path and architecture the evaluator loads for scoring).
+
+```bash
+# 1. Train (auto-generates the grid dataset if missing):
+python -m channel_estimation.train experiments/grid-neural-comparison-v1/config.yaml
+
+# 2. Score all three estimators at every SNR and emit one CSV / one plot:
+python experiments/grid-neural-comparison-v1/run-experiment.py
+```
+
+Requires the ml stack. Use the Colab notebook for a one-click GPU run.
+
 ## Inspect or regenerate the dataset
 
 ```python

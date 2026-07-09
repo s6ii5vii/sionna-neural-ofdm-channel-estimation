@@ -81,6 +81,10 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if training is not None:
         _validate_training_config(training)
 
+    neural = config.get("neural")
+    if neural is not None:
+        _validate_neural_config(neural)
+
 
 _VALID_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c", "tdl-d", "tdl-e", "rayleigh")
 
@@ -158,6 +162,52 @@ def _validate_training_config(training: object) -> None:
     dropout_rate = training.get("dropout-rate", 0.0)
     if not _is_finite_number(dropout_rate) or not 0 <= dropout_rate < 1:
         raise ConfigError("'training.dropout-rate' must be in [0, 1).")
+
+    num_layers = training.get("num-layers", 3)
+    if not isinstance(num_layers, int) or isinstance(num_layers, bool) or num_layers <= 0:
+        raise ConfigError("'training.num-layers' must be a positive integer.")
+
+    generation = training.get("dataset-generation")
+    if generation is not None:
+        _validate_dataset_generation(generation)
+
+
+def _validate_dataset_generation(generation: object) -> None:
+    """Validate an optional block that parameterizes grid dataset generation."""
+    if not isinstance(generation, Mapping):
+        raise ConfigError("'training.dataset-generation' must be a mapping.")
+
+    for key in ("num-samples", "random-seed"):
+        value = generation.get(key)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ConfigError(
+                f"'training.dataset-generation.{key}' must be an integer."
+            )
+        if key != "random-seed" and value <= 0:
+            raise ConfigError(
+                f"'training.dataset-generation.{key}' must be positive."
+            )
+
+    snr_db = generation.get("snr-db")
+    if not _is_finite_number(snr_db):
+        raise ConfigError(
+            "'training.dataset-generation.snr-db' must be a finite number."
+        )
+
+
+def _validate_neural_config(neural: object) -> None:
+    """Validate the optional block used to evaluate a trained neural estimator."""
+    if not isinstance(neural, Mapping):
+        raise ConfigError("'neural' must be a mapping when provided.")
+
+    checkpoint = neural.get("checkpoint-path")
+    if not isinstance(checkpoint, str) or not checkpoint.strip():
+        raise ConfigError("'neural.checkpoint-path' must be a non-empty path.")
+
+    for key in ("filters", "num-layers"):
+        value = neural.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ConfigError(f"'neural.{key}' must be a positive integer.")
 
 
 def resolve_path(config: Mapping[str, Any], value: str | Path) -> Path:
