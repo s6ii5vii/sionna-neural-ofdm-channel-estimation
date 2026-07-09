@@ -11,6 +11,7 @@ import numpy as np
 
 from .baselines import grid_ls_estimate, least_squares_estimate
 from .config import load_config, resolve_path
+from .dataset import complex_to_features, features_to_complex
 from .metrics import normalized_mean_squared_error
 from .ofdm import (
     generate_pilot_symbols,
@@ -48,12 +49,66 @@ def evaluate_ls(config: dict[str, Any]) -> list[dict[str, float | int]]:
     return rows
 
 
+def _squeeze_batch_grid(array: np.ndarray) -> np.ndarray:
+    """Reduce a sionna grid tensor (already numpy) to (batch, symbols, sc)."""
+    return array.reshape((array.shape[0], *array.shape[-2:]))
+
+
+def _load_neural_estimator(config: dict[str, Any]) -> Any:
+    """Load the trained convolutional grid estimator from the checkpoint.
+
+    the ``neural`` block declares the architecture (``filters``, ``num-layers``)
+    so the checkpoint state-dict can be loaded into a matching module. torch is
+    imported lazily.
+    """
+    from .models import build_grid_estimator
+
+    neural = config["neural"]
+    experiment = config["experiment"]
+    checkpoint = resolve_path(config, neural["checkpoint-path"])
+    if not checkpoint.is_file():
+        raise FileNotFoundError(f"Neural checkpoint not found: {checkpoint}")
+
+    try:
+        import torch
+    except ImportError as exc:  # pragma: no cover - requires ml stack
+        raise ImportError(
+            "PyTorch is required to evaluate the neural estimator."
+        ) from exc
+
+    model = build_grid_estimator(
+        int(experiment["num-ofdm-symbols"]),
+        int(experiment["num-subcarriers"]),
+        filters=int(neural["filters"]),
+        num_layers=int(neural["num-layers"]),
+    )
+    state = torch.load(checkpoint, map_location="cpu")
+    model.load_state_dict(state)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
+    return model, device, torch
+
+
+def _neural_predict(
+    torch: Any, model: Any, device: Any, received_grid_complex: np.ndarray
+) -> np.ndarray:
+    """Run the CNN on a batch of squeezed complex observations, return complex."""
+    features = complex_to_features(received_grid_complex).astype(np.float32)
+    with torch.no_grad():
+        predictions = model(torch.as_tensor(features).to(device)).cpu().numpy()
+    return features_to_complex(predictions)
+
+
 def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | int | str]]:
-    """Evaluate Sionna grid LS baselines across SNR on a full resource grid.
+    """Evaluate grid channel estimators across SNR on a full resource grid.
 
     for each configured SNR this simulates a batch on the ofdm resource grid and
     estimates the full-grid channel with least squares plus nearest and linear
-    interpolation, reporting NMSE against the true frequency-domain channel.
+    interpolation, reporting NMSE against the true frequency-domain channel. if
+    the config includes a ``neural`` block referencing a trained checkpoint, the
+    convolutional grid estimator is scored at the same SNRs so all three curves
+    land on one plot.
 
     requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm`` is
     imported lazily. not executed in this environment.
@@ -64,6 +119,8 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
     spec = GridSpec.from_experiment(experiment)
     num_samples = experiment["num-samples"]
     seed = experiment["random-seed"]
+
+    neural_bundle = _load_neural_estimator(config) if "neural" in config else None
 
     rows: list[dict[str, float | int | str]] = []
     for snr_db in experiment["snr-db"]:
@@ -80,6 +137,21 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
                     "estimator": f"ls-{interpolation}",
                     "snr-db": float(snr_db),
                     "nmse": normalized_mean_squared_error(h_freq_np, h_hat),
+                    "num-samples": int(num_samples),
+                }
+            )
+        if neural_bundle is not None:
+            model, device, torch_module = neural_bundle
+            y_squeezed = _squeeze_batch_grid(to_numpy(y))
+            h_true_squeezed = _squeeze_batch_grid(h_freq_np)
+            h_hat_neural = _neural_predict(torch_module, model, device, y_squeezed)
+            rows.append(
+                {
+                    "estimator": "neural-cnn",
+                    "snr-db": float(snr_db),
+                    "nmse": normalized_mean_squared_error(
+                        h_true_squeezed, h_hat_neural
+                    ),
                     "num-samples": int(num_samples),
                 }
             )

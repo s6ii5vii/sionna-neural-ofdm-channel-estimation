@@ -1,0 +1,35 @@
+experiment:
+  name: grid-neural-comparison-v1
+  description: Head-to-head comparison of LS-nn, LS-lin, and a small CNN.
+  num-subcarriers: 72
+  num-ofdm-symbols: 14
+  pilot-ofdm-symbol-indices: [2, 11]
+  channel-model: tdl-a
+  delay-spread-ns: 100
+  max-doppler-hz: 0
+  snr-db: [-5, 0, 5, 10, 15]
+  num-samples: 1000
+  model-parameter-target: 50000
+  random-seed: 42
+
+training:
+  dataset-path: data/channel-estimation-grid-dataset.npz
+  hidden-units: 16
+  num-layers: 3
+  dropout-rate: 0.0
+  epochs: 20
+  batch-size: 32
+  checkpoint-path: results/checkpoints/grid-neural-comparison-v1.pt
+  dataset-generation:
+    num-samples: 4000
+    snr-db: 10.0
+    random-seed: 42
+
+neural:
+  checkpoint-path: results/checkpoints/grid-neural-comparison-v1.pt
+  filters: 16
+  num-layers: 3
+
+output:
+  figures-dir: results/figures
+  tables-dir: results/tables
