@@ -11,13 +11,13 @@ requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Setor"}]
 dependencies = [
-  "numpy>=1.26",
+  "numpy>=2.2.6,<2.5",
   "matplotlib>=3.8",
   "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
-ml = ["sionna>=2.0", "torch>=2.4"]
+ml = ["sionna>=2.0", "torch>=2.4", "numba>=0.66"]
 test = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]
