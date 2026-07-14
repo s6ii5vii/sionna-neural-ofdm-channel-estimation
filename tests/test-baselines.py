@@ -1,3 +1,6 @@
+import sys
+from types import ModuleType, SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -16,6 +19,54 @@ class _RayleighSpec:
 def test_grid_lmmse_rejects_non_tdl_channel():
     with pytest.raises(ValueError, match="requires a TDL channel"):
         grid_lmmse_estimate(None, 0.1, None, _RayleighSpec())
+
+
+def test_grid_lmmse_uses_single_precision_covariances(monkeypatch):
+    calls = {}
+
+    class FakeInterpolator:
+        def __init__(self, _pattern, _time, _frequency, *, order):
+            calls["order"] = order
+
+    class FakeEstimator:
+        def __init__(self, _grid, *, interpolator):
+            calls["interpolator"] = interpolator
+
+        def __call__(self, _received, _noise):
+            return np.ones((1, 1), dtype=np.complex64), None
+
+    def fake_frequency(*_args, **kwargs):
+        calls["frequency-precision"] = kwargs.get("precision")
+        return object()
+
+    def fake_time(*_args, **kwargs):
+        calls["time-precision"] = kwargs.get("precision")
+        return object()
+
+    fake_ofdm = ModuleType("sionna.phy.ofdm")
+    fake_ofdm.LMMSEInterpolator = FakeInterpolator
+    fake_ofdm.LSChannelEstimator = FakeEstimator
+    fake_ofdm.tdl_freq_cov_mat = fake_frequency
+    fake_ofdm.tdl_time_cov_mat = fake_time
+    monkeypatch.setitem(sys.modules, "sionna.phy.ofdm", fake_ofdm)
+
+    spec = SimpleNamespace(
+        channel_kind="tdl-a",
+        max_doppler_hz=0.0,
+        carrier_frequency_hz=3.5e9,
+        num_subcarriers=72,
+        cyclic_prefix_length=6,
+        subcarrier_spacing_hz=30e3,
+        delay_spread_ns=100.0,
+        num_ofdm_symbols=14,
+    )
+    grid = SimpleNamespace(pilot_pattern=object())
+
+    result = grid_lmmse_estimate(object(), 0.1, grid, spec)
+
+    assert result.dtype == np.complex64
+    assert calls["frequency-precision"] == "single"
+    assert calls["time-precision"] == "single"
 
 
 def test_least_squares_recovers_noiseless_channel():

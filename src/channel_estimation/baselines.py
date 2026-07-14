@@ -166,6 +166,7 @@ def grid_lmmse_estimate(
         spec.subcarrier_spacing_hz,
         spec.num_subcarriers,
         spec.delay_spread_ns * 1e-9,
+        precision="single",
     )
     covariance_time = tdl_time_cov_mat(
         model,
@@ -173,6 +174,7 @@ def grid_lmmse_estimate(
         spec.carrier_frequency_hz,
         ofdm_symbol_duration,
         spec.num_ofdm_symbols,
+        precision="single",
     )
     interpolator = LMMSEInterpolator(
         resource_grid.pilot_pattern,
