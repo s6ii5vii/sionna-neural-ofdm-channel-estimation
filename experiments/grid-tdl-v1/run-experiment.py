@@ -1,9 +1,9 @@
-"""Run the Sionna OFDM resource-grid LS baseline sweep.
+"""Run the Sionna OFDM (orthogonal frequency-division multiplexing) resource-grid LS (least-squares) baseline sweep.
 
-This experiment requires the ml stack (Sionna 2.x, which uses PyTorch) and,
-realistically, a GPU. It simulates a full OFDM resource grid over a TDL-A channel
-and
-compares least-squares estimation with nearest and linear interpolation.
+This experiment requires the ML (machine learning) stack (Sionna 2.x, which
+uses PyTorch) and, realistically, a GPU (graphics processing unit). It
+simulates a full OFDM resource grid over a TDL-A (tapped delay line A) channel
+and compares least-squares estimation with nearest and linear interpolation.
 """
 
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""Run the implemented LS portion of the first low-resource profile.
+"""Run the implemented LS (least-squares) portion of the first low-resource profile.
 
 Neural training is deliberately separate and must be invoked through
 ``python -m channel_estimation.train`` after reviewing the training settings.

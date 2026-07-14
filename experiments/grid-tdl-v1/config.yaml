@@ -1,6 +1,6 @@
 experiment:
   name: grid-tdl-v1
-  description: Sionna OFDM resource-grid LS and LMMSE baselines on a 3GPP TDL-A channel.
+  description: Sionna orthogonal frequency-division multiplexing (OFDM) resource-grid least-squares (LS) and linear minimum mean squared error (LMMSE) baselines on a 3rd Generation Partnership Project (3GPP) tapped delay line A (TDL-A) channel.
   num-subcarriers: 72
   num-ofdm-symbols: 14
   pilot-ofdm-symbol-indices: [2, 11]

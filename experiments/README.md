@@ -17,10 +17,10 @@ The grid neural comparison also includes a heavier validation sweep:
 python experiments/grid-neural-comparison-v1/run-sweep.py
 ```
 
-By default, the sweep trains and evaluates the CNN (convolutional neural network)
-across three TDL (tapped delay line) channel models and three random seeds. Each
-run uses separate training-data, model, and evaluation seed streams. It
-writes raw NMSE (normalized mean squared error) rows, summary statistics, neural
-margin statistics against LS-lin (least-squares estimator with linear
-interpolation) and covariance-informed LMMSE (linear minimum mean squared error),
-and a channel-specific comparison figure under `results/`.
+By default, the sweep trains and evaluates the CNN (convolutional neural
+network) across three TDL (tapped delay line) channel models and three random
+seeds. Each run uses separate training-data, model, and evaluation seed streams.
+It writes raw NMSE (normalized mean squared error) rows, summary statistics,
+neural margin statistics against LS-lin (least-squares estimator with linear
+interpolation) and covariance-informed LMMSE (linear minimum mean squared
+error), and a channel-specific comparison figure under `results/`.

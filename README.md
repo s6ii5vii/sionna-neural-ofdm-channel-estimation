@@ -1,4 +1,4 @@
-# Lightweight Neural OFDM Channel Estimation for Low-Resource 6G-Like Environments
+# Lightweight Neural OFDM (orthogonal frequency-division multiplexing) Channel Estimation for Low-Resource 6G-Like Environments
 
 An early-stage reproducible research software project for evaluating classical
 and lightweight neural channel estimators under constrained wireless
@@ -6,8 +6,9 @@ conditions.
 
 ## Research question
 
-Can a lightweight neural estimator improve pilot-based OFDM channel estimation
-under low SNR, sparse pilots, limited training data, and limited inference
+Can a lightweight neural estimator improve pilot-based OFDM (orthogonal
+frequency-division multiplexing) channel estimation under low SNR
+(signal-to-noise ratio), sparse pilots, limited training data, and limited inference
 compute while remaining practical for constrained deployment scenarios?
 
 The repository establishes the simulation, dataset, classical baselines,
@@ -17,15 +18,16 @@ performance claim.
 
 ## Why this project matters
 
-Reliable channel-state estimates are required for coherent OFDM reception.
+Reliable channel-state estimates are required for coherent OFDM (orthogonal
+frequency-division multiplexing) reception.
 Neural estimators can be useful when analytical assumptions are incomplete, but
 their value must be tested against simple baselines and under explicit resource
 constraints. This project emphasizes:
 
 - reproducible configurations and seeded simulations;
 - honest comparison with classical estimators;
-- metrics such as NMSE, BER where symbol decisions are available, model size,
-  and runtime;
+- metrics such as NMSE (normalized mean squared error), BER (bit error rate)
+  where symbol decisions are available, model size, and runtime;
 - small, inspectable implementations rather than an oversized model;
 - documented assumptions, limitations, and generated artifacts.
 
@@ -33,39 +35,48 @@ constraints. This project emphasizes:
 
 Implemented:
 
-- NumPy Rayleigh/AWGN pilot-observation simulation matching the original
-  notebook experiments;
-- LS channel estimation;
-- NMSE and BER utilities;
-- split NPZ dataset loading, inspection, and regeneration;
-- configuration-driven LS sweeps across SNR values;
-- LMMSE estimation with an explicit, estimated channel covariance (NumPy,
-  unit-tested);
-- a Sionna OFDM resource-grid simulation module (TDL/Rayleigh fading, pilot
-  grid, AWGN) and a Sionna LS-with-interpolation baseline wrapper;
+- NumPy Rayleigh/AWGN (additive white Gaussian noise) pilot-observation
+  simulation matching the original notebook experiments;
+- LS (least-squares) channel estimation;
+- NMSE (normalized mean squared error) and BER (bit error rate) utilities;
+- split NPZ (NumPy compressed archive) dataset loading, inspection, and
+  regeneration;
+- configuration-driven LS (least-squares) sweeps across SNR (signal-to-noise
+  ratio) values;
+- LMMSE (linear minimum mean squared error) estimation with an explicit,
+  estimated channel covariance (NumPy, unit-tested);
+- a Sionna OFDM (orthogonal frequency-division multiplexing) resource-grid
+  simulation module (TDL (tapped delay line)/Rayleigh fading, pilot grid, AWGN
+  (additive white Gaussian noise)) and a Sionna LS (least-squares)-with-interpolation
+  baseline wrapper;
 - a Sionna-backed grid dataset generator producing full resource-grid
   observation/channel pairs;
-- a small PyTorch MLP estimator and a deliberately small convolutional full-grid
-  estimator;
+- a small PyTorch MLP (multilayer perceptron) estimator and a deliberately
+  small convolutional full-grid estimator;
 - deterministic neural training with independent data, model, and evaluation
   seeds, best-validation checkpoint selection, and dataset provenance checks;
-- repeated-seed validation sweeps across TDL channel models;
-- tests for datasets, metrics, LS, and LMMSE baselines.
+- repeated-seed validation sweeps across TDL (tapped delay line) channel
+  models;
+- tests for datasets, metrics, LS (least-squares), and LMMSE (linear minimum
+  mean squared error) baselines.
 
 A July 2026 interactive notebook run of the grid neural comparison validated the
-current TDL-A experiment path with 1,000 evaluation samples per SNR. In that run,
-the CNN substantially improved over LS interpolation across the tested SNR
-range, while model-informed LMMSE remained the strongest estimator because it
-uses the configured TDL covariance structure. The Sionna simulation, grid
-baselines, and neural comparison are not executed in CI (they require Sionna
-2.x, PyTorch, and ideally a GPU), so broader robustness claims still require
-the repeated-channel sweep below.
+current TDL-A (tapped delay line A) experiment path with 1,000 evaluation
+samples per SNR (signal-to-noise ratio). In that run, the CNN (convolutional
+neural network) substantially improved over LS (least-squares) interpolation
+across the tested SNR range, while model-informed LMMSE (linear minimum mean
+squared error) remained the strongest estimator because it uses the configured
+TDL (tapped delay line) covariance structure. The Sionna simulation, grid
+baselines, and neural comparison are not executed in CI (continuous
+integration) because they require Sionna 2.x, PyTorch, and ideally a GPU
+(graphics processing unit), so broader robustness claims still require the
+repeated-channel sweep below.
 
 Planned:
 
 - out-of-distribution robustness sweeps without retraining;
 - controlled neural architecture and dataset-size ablations;
-- BER evaluation through an end-to-end link;
+- BER (bit error rate) evaluation through an end-to-end link;
 - runtime and parameter-count reporting.
 
 ## Repository structure
@@ -99,7 +110,8 @@ On Windows PowerShell, activate the environment with:
 .\.venv\Scripts\Activate.ps1
 ```
 
-Install the ML stack when working on Sionna or the neural estimator:
+Install the ML (machine learning) stack when working on Sionna or the neural
+estimator:
 
 ```bash
 python -m pip install -e ".[ml,test]"
@@ -107,9 +119,9 @@ python -m pip install -e ".[ml,test]"
 
 `requirements.txt` contains the complete expected environment. Sionna 2.x (which
 uses PyTorch) can be heavy and platform-sensitive, so a supported Colab or GPU
-environment may be preferable.
+(graphics processing unit) environment may be preferable.
 
-## Run the LS baseline
+## Run the LS (least-squares) baseline
 
 ```bash
 python experiments/baseline-ls/run-experiment.py
@@ -131,60 +143,75 @@ does not yet reconstruct unobserved subcarriers.
 
 ## Run the Sionna grid baseline
 
-The grid experiment simulates a full OFDM resource grid over a 3GPP TDL-A
-channel and compares least-squares estimation with nearest and linear
-interpolation plus covariance-informed LMMSE interpolation across the whole
-grid. It requires the ml stack and, realistically, a GPU:
+The grid experiment simulates a full OFDM (orthogonal frequency-division
+multiplexing) resource grid over a 3GPP (3rd Generation Partnership Project)
+TDL-A (tapped delay line A) channel and compares LS (least-squares) estimation
+with nearest and linear interpolation plus covariance-informed LMMSE (linear
+minimum mean squared error) interpolation across the whole grid. It requires
+the ML (machine learning) stack and, realistically, a GPU (graphics processing
+unit):
 
 ```bash
 python -m pip install -e ".[ml]"
 python experiments/grid-tdl-v1/run-experiment.py
 ```
 
-It writes `results/tables/grid-tdl-v1.csv` and a per-estimator NMSE-vs-SNR
-figure. These Sionna paths are implemented but have not been executed in CI;
-validate them on a suitable environment before interpreting the outputs.
+It writes `results/tables/grid-tdl-v1.csv` and a per-estimator NMSE
+(normalized mean squared error)-vs-SNR (signal-to-noise ratio) figure. These
+Sionna paths are implemented but have not been executed in CI (continuous
+integration); validate them on a suitable environment before interpreting the
+outputs.
 
-Neural training (grid CNN or flat MLP, selected automatically from the dataset
-rank) runs through:
+Neural training (grid CNN (convolutional neural network) or flat MLP
+(multilayer perceptron), selected automatically from the dataset rank) runs
+through:
 
 ```bash
 python -m channel_estimation.train experiments/low-resource-v1/config.yaml
 ```
 
 Training additionally writes a `*.report.json` next to the checkpoint recording
-test NMSE, parameter count, serialized model size, and per-example latency.
+test NMSE (normalized mean squared error), parameter count, serialized model
+size, and per-example latency.
 
-## Compare the CNN against least squares (LS)
+## Compare the CNN (convolutional neural network) against least squares (LS)
 
 `experiments/grid-neural-comparison-v1/` is a single-configuration
-head-to-head comparison of LS with nearest-neighbor interpolation (LS-nn), LS
-with linear interpolation (LS-lin), covariance-informed linear minimum mean
-squared error (LMMSE), and a small convolutional neural network (CNN). The config has three
-sections: `experiment` (the shared resource-grid and channel), `training` (the
-CNN training loop and an optional `dataset-generation` block that lets training
-auto-create the grid dataset if it does not already exist), and `neural` (the
-checkpoint path and architecture the evaluator loads for scoring).
+head-to-head comparison of LS (least-squares) with nearest-neighbor
+interpolation (LS-nn), LS with linear interpolation (LS-lin),
+covariance-informed LMMSE (linear minimum mean squared error), and a small CNN
+(convolutional neural network). The config has three sections: `experiment`
+(the shared resource-grid and channel), `training` (the CNN training loop and
+an optional `dataset-generation` block that lets training auto-create the grid
+dataset if it does not already exist), and `neural` (the checkpoint path and
+architecture the evaluator loads for scoring).
 
 ```bash
 # 1. Train (auto-generates the grid dataset if missing):
 python -m channel_estimation.train experiments/grid-neural-comparison-v1/config.yaml
 
-# 2. Score all three estimators at every SNR and emit one CSV / one plot:
+# 2. Score all three estimators at every SNR (signal-to-noise ratio) and emit one CSV (comma-separated values file) / one plot:
 python experiments/grid-neural-comparison-v1/run-experiment.py
 ```
 
-Requires the ml stack. An experimental Colab helper notebook is available under
-`notebooks/`, but validate its outputs before interpreting results.
+Requires the ML (machine learning) stack. An experimental Colab helper notebook
+is available under `notebooks/`, but validate its outputs before interpreting
+results.
 
 The latest validated single-run pattern is:
 
-- LS interpolation error decreases with SNR but remains the weakest family;
-- the CNN is consistently better than LS-nn and LS-lin in the tested TDL-A run;
-- LMMSE is best overall and should be framed as a model-informed upper classical
-  benchmark, not as a resource-equivalent learned baseline.
+- LS (least-squares) interpolation error decreases with SNR (signal-to-noise
+  ratio) but remains the weakest family;
+- the CNN (convolutional neural network) is consistently better than LS-nn
+  (least-squares with nearest-neighbor interpolation) and LS-lin
+  (least-squares with linear interpolation) in the tested TDL-A (tapped delay
+  line A) run;
+- LMMSE (linear minimum mean squared error) is best overall and should be
+  framed as a model-informed upper classical benchmark, not as a
+  resource-equivalent learned baseline.
 
-Run the broader robustness sweep across TDL profiles and seeds with:
+Run the broader robustness sweep across TDL (tapped delay line) profiles and
+seeds with:
 
 ```bash
 python experiments/grid-neural-comparison-v1/run-sweep.py \
@@ -193,9 +220,10 @@ python experiments/grid-neural-comparison-v1/run-sweep.py \
   --seeds 42,43,44
 ```
 
-The sweep retrains each CNN for its channel/seed configuration, evaluates LS,
-LMMSE, and CNN at every configured SNR, and writes raw, summary, margin, and
-figure artifacts under `results/`.
+The sweep retrains each CNN (convolutional neural network) for its channel/seed
+configuration, evaluates LS (least-squares), LMMSE (linear minimum mean squared
+error), and CNN at every configured SNR (signal-to-noise ratio), and writes raw,
+summary, margin, and figure artifacts under `results/`.
 
 ## Inspect or regenerate the dataset
 
@@ -214,7 +242,7 @@ features, split into train, validation, and test arrays. See
 
 The first study profiles cover:
 
-- low SNR and noisy observations;
+- low SNR (signal-to-noise ratio) and noisy observations;
 - reduced pilot density;
 - smaller training datasets;
 - a target model-size budget;
@@ -226,27 +254,33 @@ The exact definitions, assumptions, and exclusions are documented in
 
 ## Proposal relevance
 
-This codebase is preparation evidence for scientific ML, reproducible
-experiment and evaluation, lightweight ML, and network-simulation work. It
+This codebase is preparation evidence for scientific ML (machine learning),
+reproducible experiment and evaluation, lightweight ML, and network-simulation
+work. It
 demonstrates a progression from a technical question to baselines, datasets,
 tests, configurations, and a report structure. It is not presented as a GSoC
-project, accepted research, or evidence of a 6G breakthrough.
+(Google Summer of Code) project, accepted research, or evidence of a 6G
+breakthrough.
 
 See [`docs/proposal-alignment.md`](docs/proposal-alignment.md) for the detailed
 mapping and boundaries.
 
 ## Limitations
 
-- The current NumPy model is a simplified independent Rayleigh/AWGN pilot model,
-  not a complete standards-compliant link simulation.
-- The committed dataset was generated at one SNR with unit pilots.
-- The current validated single TDL-A notebook run supports only a narrow
-  performance statement: the CNN beats LS interpolation on that run, while
-  covariance-informed LMMSE remains stronger.
+- The current NumPy model is a simplified independent Rayleigh/AWGN (additive
+  white Gaussian noise) pilot model, not a complete standards-compliant link
+  simulation.
+- The committed dataset was generated at one SNR (signal-to-noise ratio) with
+  unit pilots.
+- The current validated single TDL-A (tapped delay line A) notebook run
+  supports only a narrow performance statement: the CNN (convolutional neural
+  network) beats LS (least-squares) interpolation on that run, while
+  covariance-informed LMMSE (linear minimum mean squared error) remains stronger.
 - LMMSE now uses a covariance matrix estimated from channel realizations; it is
   only as good as that covariance assumption and the data it is estimated from.
-- BER is implemented as a metric utility but is not yet connected to an
-  end-to-end coded OFDM receiver.
+- BER (bit error rate) is implemented as a metric utility but is not yet
+  connected to an end-to-end coded OFDM (orthogonal frequency-division
+  multiplexing) receiver.
 - Generated results require validation before scientific interpretation.
 
 ## Report and citation

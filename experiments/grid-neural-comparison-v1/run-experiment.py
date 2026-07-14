@@ -1,11 +1,12 @@
-"""Run the head-to-head grid comparison of LS estimators and the CNN.
+"""Run the head-to-head grid comparison of LS (least-squares) estimators and the CNN (convolutional neural network).
 
 Assumes the checkpoint referenced by the config already exists. To create it,
 first run:
 
     python -m channel_estimation.train experiments/grid-neural-comparison-v1/config.yaml
 
-which auto-generates the grid dataset if missing and trains the CNN.
+which auto-generates the grid dataset if missing and trains the CNN
+(convolutional neural network).
 """
 
 from pathlib import Path

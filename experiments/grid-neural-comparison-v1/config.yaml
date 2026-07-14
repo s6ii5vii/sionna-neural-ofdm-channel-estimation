@@ -1,6 +1,6 @@
 experiment:
   name: grid-neural-comparison-v1
-  description: Comparison of LS interpolation, model-informed LMMSE, and a small CNN.
+  description: Comparison of least-squares (LS) interpolation, model-informed linear minimum mean squared error (LMMSE), and a small convolutional neural network (CNN).
   num-subcarriers: 72
   num-ofdm-symbols: 14
   pilot-ofdm-symbol-indices: [2, 11]

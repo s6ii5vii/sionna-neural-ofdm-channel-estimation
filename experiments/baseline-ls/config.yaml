@@ -1,6 +1,6 @@
 experiment:
   name: baseline-ls
-  description: Least-squares channel estimation across SNR values.
+  description: Least-squares (LS) channel estimation across signal-to-noise ratio (SNR) values.
   snr-db: [0, 5, 10, 15, 20, 25, 30]
   num-samples: 1000
   num-pilots: 64

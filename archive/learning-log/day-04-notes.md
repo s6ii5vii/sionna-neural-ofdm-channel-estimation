@@ -11,7 +11,8 @@
 - Generated thousands of simulated wireless channel examples.
 - Created known pilot symbols for each example.
 - Added complex noise to received pilot signals.
-- Converted complex input and target arrays into real-imaginary ML format.
+- Converted complex input and target arrays into real-imaginary ML (machine
+  learning) format.
 - Split the dataset into training, validation, and test sets.
 - Saved the dataset as a NumPy `.npz` file.
 

@@ -2,9 +2,10 @@
 
 ## Committed sample dataset
 
-`channel-estimation-dataset.npz` is a small reference dataset generated for the
-first neural-estimator experiments. It contains 5,000 simulated examples with
-64 pilot observations per example at 10 dB SNR.
+`channel-estimation-dataset.npz` is a small NPZ (NumPy compressed archive)
+reference dataset generated for the first neural-estimator experiments. It
+contains 5,000 simulated examples with 64 pilot observations per example at 10
+dB SNR (signal-to-noise ratio).
 
 The current archive contains:
 
@@ -24,11 +25,11 @@ datasets default to `float32`.
 ## Regeneration
 
 Use `channel_estimation.dataset.generate_synthetic_dataset` and
-`save_npz_dataset` for the current independent Rayleigh/AWGN model. New dataset
-versions should record:
+`save_npz_dataset` for the current independent Rayleigh/AWGN (additive white
+Gaussian noise) model. New dataset versions should record:
 
 - random seed;
-- SNR or SNR sampling policy;
+- SNR (signal-to-noise ratio) or SNR sampling policy;
 - pilot count and density;
 - channel model;
 - train, validation, and test split policy;
