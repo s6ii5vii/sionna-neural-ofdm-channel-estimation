@@ -87,6 +87,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
 
 
 _VALID_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c", "tdl-d", "tdl-e", "rayleigh")
+_VALID_GRID_NEURAL_INPUTS = ("received", "ls-nn", "ls-lin")
 
 
 def _require_positive_int(experiment: Mapping[str, Any], key: str) -> int:
@@ -194,6 +195,13 @@ def _validate_dataset_generation(generation: object) -> None:
             "'training.dataset-generation.snr-db' must be a finite number."
         )
 
+    input_source = generation.get("input-source", "received")
+    if input_source not in _VALID_GRID_NEURAL_INPUTS:
+        raise ConfigError(
+            f"'training.dataset-generation.input-source' must be one of "
+            f"{_VALID_GRID_NEURAL_INPUTS}."
+        )
+
 
 def _validate_neural_config(neural: object) -> None:
     """Validate the optional block used to evaluate a trained neural estimator."""
@@ -208,6 +216,12 @@ def _validate_neural_config(neural: object) -> None:
         value = neural.get(key)
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
             raise ConfigError(f"'neural.{key}' must be a positive integer.")
+
+    input_source = neural.get("input-source", "received")
+    if input_source not in _VALID_GRID_NEURAL_INPUTS:
+        raise ConfigError(
+            f"'neural.input-source' must be one of {_VALID_GRID_NEURAL_INPUTS}."
+        )
 
 
 def resolve_path(config: Mapping[str, Any], value: str | Path) -> Path:

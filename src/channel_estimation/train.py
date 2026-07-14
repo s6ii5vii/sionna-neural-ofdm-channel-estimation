@@ -59,6 +59,7 @@ def _generate_dataset_from_config(config: dict[str, Any], dataset_path: Path) ->
         num_samples=int(generation["num-samples"]),
         snr_db=float(generation["snr-db"]),
         random_seed=int(generation.get("random-seed", 42)),
+        input_source=str(generation.get("input-source", "received")),
     )
     save_npz_dataset(dataset_path, dataset)
     print(f"generated grid dataset at {dataset_path}")

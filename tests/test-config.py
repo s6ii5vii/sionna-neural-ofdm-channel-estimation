@@ -91,6 +91,7 @@ def test_validate_config_accepts_neural_block():
         "checkpoint-path": "results/checkpoints/model.pt",
         "filters": 16,
         "num-layers": 3,
+        "input-source": "ls-lin",
     }
     validate_config(config)
 
@@ -113,6 +114,18 @@ def test_validate_config_rejects_neural_non_positive_filters():
         validate_config(config)
 
 
+def test_validate_config_rejects_neural_unknown_input_source():
+    config = valid_grid_config()
+    config["neural"] = {
+        "checkpoint-path": "results/checkpoints/model.pt",
+        "filters": 16,
+        "num-layers": 3,
+        "input-source": "pilots-only",
+    }
+    with pytest.raises(ConfigError, match="neural.input-source"):
+        validate_config(config)
+
+
 def test_validate_config_accepts_dataset_generation_block():
     config = valid_grid_config()
     config["training"] = {
@@ -126,6 +139,7 @@ def test_validate_config_accepts_dataset_generation_block():
             "num-samples": 1000,
             "snr-db": 10.0,
             "random-seed": 42,
+            "input-source": "ls-lin",
         },
     }
     validate_config(config)
@@ -146,4 +160,23 @@ def test_validate_config_rejects_dataset_generation_bad_snr():
         },
     }
     with pytest.raises(ConfigError, match="dataset-generation.snr-db"):
+        validate_config(config)
+
+
+def test_validate_config_rejects_dataset_generation_unknown_input_source():
+    config = valid_grid_config()
+    config["training"] = {
+        "dataset-path": "data/foo.npz",
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "hidden-units": 16,
+        "epochs": 10,
+        "batch-size": 32,
+        "dataset-generation": {
+            "num-samples": 1000,
+            "snr-db": 10.0,
+            "random-seed": 42,
+            "input-source": "pilots-only",
+        },
+    }
+    with pytest.raises(ConfigError, match="dataset-generation.input-source"):
         validate_config(config)

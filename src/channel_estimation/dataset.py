@@ -178,13 +178,16 @@ def generate_grid_dataset(
     snr_db: float = 10.0,
     random_seed: int = 42,
     batch_size: int = 256,
+    input_source: str = "received",
     dtype: np.dtype = np.float32,
 ) -> dict[str, NDArray[np.generic]]:
     """Generate a split dataset of ofdm resource grids using Sionna.
 
-    each example is a received resource grid (input) paired with the true
-    frequency-domain channel over the full grid (target), both represented with a
-    trailing real/imaginary axis. produces arrays shaped
+    each example is paired with the true frequency-domain channel over the full
+    grid (target), both represented with a trailing real/imaginary axis.
+    ``input_source`` selects the neural input: ``"received"`` uses the raw
+    received resource grid, while ``"ls-nn"`` and ``"ls-lin"`` use pilot-aware
+    least-squares interpolation as a denoising/refinement input. produces arrays shaped
     ``(samples, num-ofdm-symbols, num-subcarriers, 2)``.
 
     this requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm``
@@ -193,8 +196,10 @@ def generate_grid_dataset(
     """
     if num_samples <= 0 or batch_size <= 0:
         raise ValueError("num_samples and batch_size must be positive.")
+    if input_source not in ("received", "ls-nn", "ls-lin"):
+        raise ValueError("input_source must be 'received', 'ls-nn', or 'ls-lin'.")
 
-    from .sionna_ofdm import simulate_grid
+    from .sionna_ofdm import simulate_grid, simulate_grid_tensors, to_numpy
 
     received_batches: list[NDArray[np.complexfloating]] = []
     channel_batches: list[NDArray[np.complexfloating]] = []
@@ -202,12 +207,29 @@ def generate_grid_dataset(
     batch_index = 0
     while collected < num_samples:
         this_batch = min(batch_size, num_samples - collected)
-        received, channels, _no = simulate_grid(
-            spec,
-            snr_db,
-            batch_size=this_batch,
-            seed=random_seed + batch_index,
-        )
+        if input_source == "received":
+            received, channels, _no = simulate_grid(
+                spec,
+                snr_db,
+                batch_size=this_batch,
+                seed=random_seed + batch_index,
+            )
+        else:
+            from .baselines import grid_ls_estimate
+
+            y, h_freq, no, resource_grid = simulate_grid_tensors(
+                spec,
+                snr_db,
+                batch_size=this_batch,
+                seed=random_seed + batch_index,
+            )
+            interpolation = input_source.removeprefix("ls-")
+            received = grid_ls_estimate(
+                y, no, resource_grid, interpolation_type=interpolation
+            ).reshape((this_batch, spec.num_ofdm_symbols, spec.num_subcarriers))
+            channels = to_numpy(h_freq).reshape(
+                (this_batch, spec.num_ofdm_symbols, spec.num_subcarriers)
+            )
         received_batches.append(received)
         channel_batches.append(channels)
         collected += this_batch

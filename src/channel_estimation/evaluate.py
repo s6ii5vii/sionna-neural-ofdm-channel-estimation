@@ -100,6 +100,24 @@ def _neural_predict(
     return features_to_complex(predictions)
 
 
+def _neural_input_grid(
+    input_source: str,
+    y: Any,
+    no: float,
+    resource_grid: Any,
+) -> np.ndarray:
+    """Build the complex grid representation consumed by the neural estimator."""
+    from .sionna_ofdm import to_numpy
+
+    if input_source == "received":
+        return _squeeze_batch_grid(to_numpy(y))
+    if input_source in ("ls-nn", "ls-lin"):
+        interpolation = input_source.removeprefix("ls-")
+        h_hat = grid_ls_estimate(y, no, resource_grid, interpolation_type=interpolation)
+        return _squeeze_batch_grid(h_hat)
+    raise ValueError("neural.input-source must be 'received', 'ls-nn', or 'ls-lin'.")
+
+
 def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | int | str]]:
     """Evaluate grid channel estimators across SNR on a full resource grid.
 
@@ -142,9 +160,10 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
             )
         if neural_bundle is not None:
             model, device, torch_module = neural_bundle
-            y_squeezed = _squeeze_batch_grid(to_numpy(y))
+            input_source = str(config["neural"].get("input-source", "received"))
+            neural_input = _neural_input_grid(input_source, y, no, resource_grid)
             h_true_squeezed = _squeeze_batch_grid(h_freq_np)
-            h_hat_neural = _neural_predict(torch_module, model, device, y_squeezed)
+            h_hat_neural = _neural_predict(torch_module, model, device, neural_input)
             rows.append(
                 {
                     "estimator": "neural-cnn",

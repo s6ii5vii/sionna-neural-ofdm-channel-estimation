@@ -5,6 +5,7 @@ import pytest
 
 from channel_estimation.dataset import (
     EXPECTED_SPLIT_KEYS,
+    generate_grid_dataset,
     generate_synthetic_dataset,
     load_npz_dataset,
     split_dataset,
@@ -31,6 +32,16 @@ def test_generate_synthetic_dataset_shapes():
     assert dataset["x_val"].shape == (3, 8, 2)
     assert dataset["x_test"].shape == (3, 8, 2)
     assert dataset["x_train"].dtype == np.float32
+
+
+def test_generate_grid_dataset_rejects_unknown_input_source():
+    with pytest.raises(ValueError, match="input_source"):
+        generate_grid_dataset(
+            object(),
+            num_samples=1,
+            batch_size=1,
+            input_source="pilots-only",
+        )
 
 
 def test_load_dataset_accepts_ofdm_grid_shape(tmp_path):

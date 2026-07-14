@@ -13,7 +13,7 @@ experiment:
   random-seed: 42
 
 training:
-  dataset-path: data/channel-estimation-grid-dataset.npz
+  dataset-path: data/channel-estimation-grid-ls-lin-dataset.npz
   hidden-units: 16
   num-layers: 3
   dropout-rate: 0.0
@@ -24,11 +24,13 @@ training:
     num-samples: 4000
     snr-db: 10.0
     random-seed: 42
+    input-source: ls-lin
 
 neural:
   checkpoint-path: results/checkpoints/grid-neural-comparison-v1.pt
   filters: 16
   num-layers: 3
+  input-source: ls-lin
 
 output:
   figures-dir: results/figures
