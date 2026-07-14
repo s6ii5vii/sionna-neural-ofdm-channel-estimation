@@ -1,6 +1,6 @@
 experiment:
   name: grid-tdl-v1
-  description: Sionna OFDM resource-grid LS baselines on a 3GPP TDL-A channel.
+  description: Sionna OFDM resource-grid LS and LMMSE baselines on a 3GPP TDL-A channel.
   num-subcarriers: 72
   num-ofdm-symbols: 14
   pilot-ofdm-symbol-indices: [2, 11]

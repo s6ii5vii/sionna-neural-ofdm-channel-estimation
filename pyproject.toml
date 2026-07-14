@@ -7,7 +7,7 @@ name = "channel-estimation"
 version = "0.1.0"
 description = "Reproducible experiments for lightweight neural OFDM channel estimation in low-resource 6G-like environments."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [{name = "Setor"}]
 dependencies = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = ["sionna>=2.0", "torch>=2.4", "numba>=0.60,<0.62"]
+ml = ["sionna>=2.0", "torch>=2.9", "numba>=0.60,<0.62"]
 test = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]

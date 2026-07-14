@@ -10,10 +10,10 @@ Can a lightweight neural estimator improve pilot-based OFDM channel estimation
 under low SNR, sparse pilots, limited training data, and limited inference
 compute while remaining practical for constrained deployment scenarios?
 
-The repository currently establishes the simulation, dataset, least-squares
-(LS) baseline, metrics, and experiment structure needed to investigate that
-question. It does not yet establish that a neural estimator outperforms the
-classical baseline.
+The repository establishes the simulation, dataset, classical baselines,
+lightweight neural estimator, metrics, and repeated-seed experiment structure
+needed to investigate that question. It does not yet make a reviewed neural
+performance claim.
 
 ## Why this project matters
 
@@ -47,16 +47,19 @@ Implemented:
   observation/channel pairs;
 - a small PyTorch MLP estimator and a deliberately small convolutional full-grid
   estimator;
+- deterministic neural training with independent data, model, and evaluation
+  seeds, best-validation checkpoint selection, and dataset provenance checks;
+- repeated-seed validation sweeps across TDL channel models;
 - tests for datasets, metrics, LS, and LMMSE baselines.
 
-The Sionna simulation and grid-LS paths are implemented but not yet executed in
-CI (they require Sionna 2.x, PyTorch, and ideally a GPU); run them on a suitable
-environment to validate before interpreting any generated results.
+The Sionna simulation, grid baselines, and neural comparison have been exercised
+interactively, but are not executed in CI (they require Sionna 2.x, PyTorch, and
+ideally a GPU). Generated results still require review before interpretation.
 
 Planned:
 
-- validated full OFDM resource-grid experiments in Sionna;
-- neural training on the grid dataset and controlled ablations;
+- out-of-distribution robustness sweeps without retraining;
+- controlled neural architecture and dataset-size ablations;
 - BER evaluation through an end-to-end link;
 - runtime and parameter-count reporting.
 
@@ -75,8 +78,7 @@ archive/learning-log/     original dated development notes
 
 ## Quickstart
 
-Python 3.10-3.12 is recommended for the broadest PyTorch and Sionna
-compatibility.
+Python 3.11 or newer is required by the current Sionna 2.x stack.
 
 ```bash
 python -m venv .venv
@@ -126,8 +128,8 @@ does not yet reconstruct unobserved subcarriers.
 
 The grid experiment simulates a full OFDM resource grid over a 3GPP TDL-A
 channel and compares least-squares estimation with nearest and linear
-interpolation across the whole grid. It requires the ml stack and, realistically,
-a GPU:
+interpolation plus covariance-informed LMMSE interpolation across the whole
+grid. It requires the ml stack and, realistically, a GPU:
 
 ```bash
 python -m pip install -e ".[ml]"
@@ -151,8 +153,9 @@ test NMSE, parameter count, serialized model size, and per-example latency.
 ## Compare the CNN against least squares (LS)
 
 `experiments/grid-neural-comparison-v1/` is a single-configuration
-head-to-head comparison of LS with nearest-neighbor interpolation (ls-nn), LS
-with linear interpolation (ls-lin), and a small CNN. The config has three
+head-to-head comparison of LS with nearest-neighbor interpolation (LS-nn), LS
+with linear interpolation (LS-lin), covariance-informed linear minimum mean
+squared error (LMMSE), and a small convolutional neural network (CNN). The config has three
 sections: `experiment` (the shared resource-grid and channel), `training` (the
 CNN training loop and an optional `dataset-generation` block that lets training
 auto-create the grid dataset if it does not already exist), and `neural` (the
@@ -212,7 +215,7 @@ mapping and boundaries.
 - The current NumPy model is a simplified independent Rayleigh/AWGN pilot model,
   not a complete standards-compliant link simulation.
 - The committed dataset was generated at one SNR with unit pilots.
-- No neural performance results are reported yet.
+- No reviewed neural performance claim is reported yet.
 - LMMSE now uses a covariance matrix estimated from channel realizations; it is
   only as good as that covariance assumption and the data it is estimated from.
 - BER is implemented as a metric utility but is not yet connected to an

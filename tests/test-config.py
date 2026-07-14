@@ -145,6 +145,38 @@ def test_validate_config_accepts_dataset_generation_block():
     validate_config(config)
 
 
+def test_validate_config_rejects_mismatched_training_and_neural_architecture():
+    config = valid_grid_config()
+    config["training"] = {
+        "dataset-path": "data/foo.npz",
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "hidden-units": 8,
+        "epochs": 1,
+        "batch-size": 8,
+    }
+    config["neural"] = {
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "filters": 16,
+        "num-layers": 3,
+    }
+    with pytest.raises(ConfigError, match="hidden-units"):
+        validate_config(config)
+
+
+def test_validate_config_rejects_non_positive_learning_rate():
+    config = valid_grid_config()
+    config["training"] = {
+        "dataset-path": "data/foo.npz",
+        "checkpoint-path": "results/checkpoints/m.pt",
+        "hidden-units": 16,
+        "epochs": 1,
+        "batch-size": 8,
+        "learning-rate": 0,
+    }
+    with pytest.raises(ConfigError, match="learning-rate"):
+        validate_config(config)
+
+
 def test_validate_config_rejects_dataset_generation_bad_snr():
     config = valid_grid_config()
     config["training"] = {

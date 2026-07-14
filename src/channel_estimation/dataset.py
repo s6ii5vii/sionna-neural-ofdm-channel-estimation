@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
@@ -25,6 +27,51 @@ EXPECTED_SPLIT_KEYS = (
     "x_test",
     "y_test",
 )
+DATASET_METADATA_KEY = "metadata_json"
+
+
+def _grid_generator_code_hash() -> str:
+    digest = hashlib.sha256()
+    for name in ("dataset.py", "sionna_ofdm.py", "baselines.py"):
+        digest.update(Path(__file__).with_name(name).read_bytes())
+    return digest.hexdigest()
+
+
+def grid_dataset_metadata(config: Mapping[str, object]) -> dict[str, object]:
+    """Return reproducibility metadata for a configured grid dataset."""
+    experiment = dict(config["experiment"])  # type: ignore[arg-type]
+    training = dict(config["training"])  # type: ignore[arg-type]
+    generation = dict(training["dataset-generation"])
+    payload = {
+        "schema-version": 1,
+        "generator-code-hash": _grid_generator_code_hash(),
+        "experiment": {
+            key: experiment.get(key)
+            for key in (
+                "num-subcarriers",
+                "num-ofdm-symbols",
+                "pilot-ofdm-symbol-indices",
+                "channel-model",
+                "delay-spread-ns",
+                "max-doppler-hz",
+            )
+        },
+        "generation": generation,
+    }
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    payload["fingerprint"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return payload
+
+
+def dataset_metadata(dataset: Mapping[str, ArrayLike]) -> dict[str, object] | None:
+    """Decode optional JSON metadata stored in an NPZ dataset."""
+    value = dataset.get(DATASET_METADATA_KEY)
+    if value is None:
+        return None
+    try:
+        return json.loads(str(np.asarray(value).item()))
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("Dataset metadata is not valid JSON.") from exc
 
 
 def load_npz_dataset(

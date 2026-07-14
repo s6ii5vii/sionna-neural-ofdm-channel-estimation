@@ -126,3 +126,60 @@ def grid_ls_estimate(
     )
     h_hat, _err_var = estimator(received_grid, noise_power)
     return to_numpy(h_hat)
+
+
+def grid_lmmse_estimate(
+    received_grid: Any,
+    noise_power: float,
+    resource_grid: Any,
+    spec: Any,
+    *,
+    order: str = "f-t",
+) -> NDArray[np.complexfloating]:
+    """Estimate a TDL grid with covariance-informed LMMSE interpolation.
+
+    The covariance matrices use the configured TDL model, delay spread,
+    mobility, carrier frequency, and OFDM symbol duration. This is a
+    model-informed benchmark and should be reported as such.
+    """
+    if not str(spec.channel_kind).startswith("tdl-"):
+        raise ValueError("Grid LMMSE interpolation currently requires a TDL channel.")
+    try:
+        from sionna.phy.ofdm import (
+            LMMSEInterpolator,
+            LSChannelEstimator,
+            tdl_freq_cov_mat,
+            tdl_time_cov_mat,
+        )
+    except ImportError as exc:  # pragma: no cover - requires ml stack
+        raise ImportError("Sionna is required for grid LMMSE estimation.") from exc
+
+    from .sionna_ofdm import _doppler_to_speed, to_numpy
+
+    model = str(spec.channel_kind).split("-")[-1].upper()
+    speed = _doppler_to_speed(spec.max_doppler_hz, spec.carrier_frequency_hz)
+    ofdm_symbol_duration = (
+        spec.num_subcarriers + spec.cyclic_prefix_length
+    ) / (spec.num_subcarriers * spec.subcarrier_spacing_hz)
+    covariance_frequency = tdl_freq_cov_mat(
+        model,
+        spec.subcarrier_spacing_hz,
+        spec.num_subcarriers,
+        spec.delay_spread_ns * 1e-9,
+    )
+    covariance_time = tdl_time_cov_mat(
+        model,
+        speed,
+        spec.carrier_frequency_hz,
+        ofdm_symbol_duration,
+        spec.num_ofdm_symbols,
+    )
+    interpolator = LMMSEInterpolator(
+        resource_grid.pilot_pattern,
+        covariance_time,
+        covariance_frequency,
+        order=order,
+    )
+    estimator = LSChannelEstimator(resource_grid, interpolator=interpolator)
+    h_hat, _err_var = estimator(received_grid, noise_power)
+    return to_numpy(h_hat)

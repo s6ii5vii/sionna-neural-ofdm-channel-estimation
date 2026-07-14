@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 
 from channel_estimation.dataset import (
+    DATASET_METADATA_KEY,
     EXPECTED_SPLIT_KEYS,
+    dataset_metadata,
     generate_grid_dataset,
     generate_synthetic_dataset,
     load_npz_dataset,
@@ -24,6 +26,15 @@ def test_load_dataset_round_trip(tmp_path):
     loaded = load_npz_dataset(path)
     assert set(loaded) == set(EXPECTED_SPLIT_KEYS)
     assert loaded["x_train"].shape == (2, 3, 2)
+
+
+def test_dataset_metadata_round_trip(tmp_path):
+    path = tmp_path / "metadata.npz"
+    arrays = {key: np.zeros((2, 3, 2), dtype=np.float32) for key in EXPECTED_SPLIT_KEYS}
+    arrays[DATASET_METADATA_KEY] = np.asarray('{"fingerprint": "abc"}')
+    np.savez(path, **arrays)
+
+    assert dataset_metadata(load_npz_dataset(path)) == {"fingerprint": "abc"}
 
 
 def test_generate_synthetic_dataset_shapes():

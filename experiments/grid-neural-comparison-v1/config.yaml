@@ -1,6 +1,6 @@
 experiment:
   name: grid-neural-comparison-v1
-  description: Head-to-head comparison of LS-nn, LS-lin, and a small CNN.
+  description: Comparison of LS interpolation, model-informed LMMSE, and a small CNN.
   num-subcarriers: 72
   num-ofdm-symbols: 14
   pilot-ofdm-symbol-indices: [2, 11]
@@ -10,7 +10,7 @@ experiment:
   snr-db: [-5, 0, 5, 10, 15]
   num-samples: 1000
   model-parameter-target: 50000
-  random-seed: 42
+  random-seed: 100042
 
 training:
   dataset-path: data/channel-estimation-grid-ls-lin-dataset.npz
@@ -19,6 +19,8 @@ training:
   dropout-rate: 0.0
   epochs: 20
   batch-size: 32
+  learning-rate: 0.001
+  model-seed: 50042
   checkpoint-path: results/checkpoints/grid-neural-comparison-v1.pt
   dataset-generation:
     num-samples: 4000

@@ -2,6 +2,7 @@
 
 from .baselines import (
     estimate_channel_covariance,
+    grid_lmmse_estimate,
     least_squares_estimate,
     lmmse_estimate,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "bit_error_rate",
     "estimate_channel_covariance",
     "generate_synthetic_dataset",
+    "grid_lmmse_estimate",
     "least_squares_estimate",
     "lmmse_estimate",
     "load_npz_dataset",

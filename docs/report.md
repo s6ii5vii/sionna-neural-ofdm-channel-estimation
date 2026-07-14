@@ -4,9 +4,9 @@
 
 This living report describes an early-stage reproducible study of pilot-based
 OFDM channel estimation under constrained conditions. The current codebase
-implements a simplified Rayleigh/AWGN simulation, a least-squares baseline,
-dataset tooling, and an intentionally small neural-estimator skeleton. No neural
-performance claim is made. Future experiments will evaluate whether a
+implements a simplified Rayleigh/AWGN simulation, Sionna resource-grid
+simulation, classical estimators, dataset tooling, and an intentionally small
+neural estimator. No reviewed neural performance claim is made. Experiments evaluate whether a
 lightweight model offers useful error or robustness tradeoffs under low SNR,
 sparse pilots, limited data, and compute constraints.
 
@@ -44,22 +44,23 @@ Figures and CSV tables are generated rather than manually transcribed.
 ## Baselines
 
 LS estimation is implemented as element-wise division by known non-zero pilots.
-LMMSE remains planned until channel and noise covariance assumptions are
-documented and validated.
+LMMSE is implemented both for the simplified NumPy model and as a
+covariance-informed Sionna grid interpolator using the configured TDL profile.
 
 ## Neural estimator
 
 The PyTorch MLP flattens real/imaginary pilot features, applies one small hidden
 layer, and predicts channel features; a small convolutional network estimates the
 channel across a full resource grid. Architecture selection, parameter counts,
-training protocol, and ablations remain to be completed.
+training protocol, deterministic seed policy, and best-validation checkpoint
+selection are implemented; broader ablations remain to be completed.
 
 ## Experiments
 
 The implemented baseline profile sweeps LS NMSE over SNR. The first
 low-resource profile reduces pilot density and evaluation sample count while
-declaring data and model-size targets. Repeated seeds and standardized Sionna
-channel profiles are planned.
+declaring data and model-size targets. Repeated-seed validation across
+standardized Sionna TDL channel profiles is implemented.
 
 ## Results
 
@@ -71,19 +72,17 @@ latency. BER should be reported only after an end-to-end decision path exists.
 
 ## Limitations
 
-The current simulator is simplified, the committed dataset uses one SNR, sparse
-pilots lack full-grid reconstruction, LMMSE is absent, and the neural baseline
-has not been trained or evaluated in a controlled study.
+The committed sample dataset uses one SNR, the grid CNN trains at one SNR, the
+grid LMMSE benchmark assumes knowledge of the configured TDL profile, and no
+end-to-end bit-error-rate receiver is connected yet.
 
 ## Future work
 
-1. Validate a complete Sionna OFDM pipeline.
-2. Implement sparse-pilot interpolation or full-grid learned reconstruction.
-3. Add a covariance-defined LMMSE baseline.
-4. Train and evaluate the lightweight estimator.
-5. Add repeated seeds and out-of-distribution channel conditions.
-6. Measure model size, latency, and memory use.
-7. Connect BER to a documented end-to-end receiver.
+1. Review repeated-seed validation results.
+2. Evaluate out-of-distribution channel conditions without retraining.
+3. Add pilot-pattern and mixed-SNR ablations.
+4. Measure memory use and operation count alongside corrected latency metrics.
+5. Connect BER to a documented end-to-end receiver.
 
 ## References
 

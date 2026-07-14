@@ -3,9 +3,19 @@ import pytest
 
 from channel_estimation.baselines import (
     estimate_channel_covariance,
+    grid_lmmse_estimate,
     least_squares_estimate,
     lmmse_estimate,
 )
+
+
+class _RayleighSpec:
+    channel_kind = "rayleigh"
+
+
+def test_grid_lmmse_rejects_non_tdl_channel():
+    with pytest.raises(ValueError, match="requires a TDL channel"):
+        grid_lmmse_estimate(None, 0.1, None, _RayleighSpec())
 
 
 def test_least_squares_recovers_noiseless_channel():

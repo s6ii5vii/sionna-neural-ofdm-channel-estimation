@@ -84,6 +84,16 @@ def validate_config(config: Mapping[str, Any]) -> None:
     neural = config.get("neural")
     if neural is not None:
         _validate_neural_config(neural)
+    if isinstance(training, Mapping) and isinstance(neural, Mapping):
+        if training["hidden-units"] != neural["filters"]:
+            raise ConfigError("'training.hidden-units' must match 'neural.filters'.")
+        if training.get("num-layers", 3) != neural["num-layers"]:
+            raise ConfigError("Training and neural layer counts must match.")
+        generation = training.get("dataset-generation")
+        if isinstance(generation, Mapping) and generation.get(
+            "input-source", "received"
+        ) != neural.get("input-source", "received"):
+            raise ConfigError("Training and neural input sources must match.")
 
 
 _VALID_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c", "tdl-d", "tdl-e", "rayleigh")
@@ -167,6 +177,14 @@ def _validate_training_config(training: object) -> None:
     num_layers = training.get("num-layers", 3)
     if not isinstance(num_layers, int) or isinstance(num_layers, bool) or num_layers <= 0:
         raise ConfigError("'training.num-layers' must be a positive integer.")
+
+    model_seed = training.get("model-seed", 42)
+    if not isinstance(model_seed, int) or isinstance(model_seed, bool):
+        raise ConfigError("'training.model-seed' must be an integer.")
+
+    learning_rate = training.get("learning-rate", 1e-3)
+    if not _is_finite_number(learning_rate) or learning_rate <= 0:
+        raise ConfigError("'training.learning-rate' must be positive.")
 
     generation = training.get("dataset-generation")
     if generation is not None:

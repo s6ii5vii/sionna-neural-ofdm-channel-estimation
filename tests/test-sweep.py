@@ -102,8 +102,10 @@ def test_build_sweep_config_isolates_dataset_and_checkpoint_paths():
     )
 
     assert config["experiment"]["channel-model"] == "tdl-b"
-    assert config["experiment"]["random-seed"] == 43
+    assert config["experiment"]["random-seed"] == 100_043
     assert config["training"]["dataset-generation"]["random-seed"] == 43
+    assert config["training"]["model-seed"] == 50_043
+    assert config["experiment"]["random-seed"] != config["training"]["model-seed"]
     assert config["training"]["dataset-path"].endswith("tdl-b-seed-43-dataset.npz")
     assert config["neural"]["checkpoint-path"] == config["training"]["checkpoint-path"]
     assert base_config["experiment"]["channel-model"] == "tdl-a"

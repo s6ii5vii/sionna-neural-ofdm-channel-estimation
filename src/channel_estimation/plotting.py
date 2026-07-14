@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 from typing import Iterable, Mapping, Sequence, Tuple
 
 
@@ -97,35 +98,36 @@ def save_nmse_sweep_comparison(
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    grouped: dict[str, dict[float, list[Mapping[str, object]]]] = {}
+    grouped: dict[str, dict[str, dict[float, Mapping[str, object]]]] = {}
     for row in summary_rows:
+        channel_model = str(row["channel-model"])
         estimator = str(row["estimator"])
         snr_db = float(row["snr-db"])
-        grouped.setdefault(estimator, {}).setdefault(snr_db, []).append(row)
+        grouped.setdefault(channel_model, {}).setdefault(estimator, {})[snr_db] = row
 
-    figure, axis = plt.subplots(figsize=(7, 4))
-    for estimator, by_snr in grouped.items():
-        snr_values = sorted(by_snr)
-        nmse_values = []
-        lower = []
-        upper = []
-        for snr_db in snr_values:
-            rows = by_snr[snr_db]
-            means = [float(row["nmse-mean"]) for row in rows]
-            stds = [float(row["nmse-std"]) for row in rows]
-            value = sum(means) / len(means)
-            spread = sum(stds) / len(stds)
-            nmse_values.append(value)
-            lower.append(max(value - spread, 1e-12))
-            upper.append(value + spread)
-        axis.semilogy(snr_values, nmse_values, marker="o", label=estimator)
-        axis.fill_between(snr_values, lower, upper, alpha=0.12)
-
-    axis.set_xlabel("SNR (dB)")
-    axis.set_ylabel("NMSE")
-    axis.set_title(title)
-    axis.grid(True, which="both", alpha=0.35)
-    axis.legend()
+    channel_models = sorted(grouped)
+    columns = min(3, len(channel_models))
+    rows = math.ceil(len(channel_models) / columns)
+    figure, axes = plt.subplots(
+        rows, columns, figsize=(6 * columns, 4 * rows), squeeze=False, sharey=True
+    )
+    for axis, channel_model in zip(axes.flat, channel_models, strict=False):
+        for estimator, by_snr in sorted(grouped[channel_model].items()):
+            snr_values = sorted(by_snr)
+            values = [float(by_snr[snr]["nmse-mean"]) for snr in snr_values]
+            spreads = [float(by_snr[snr]["nmse-std"]) for snr in snr_values]
+            lower = [max(value - spread, 1e-12) for value, spread in zip(values, spreads)]
+            upper = [value + spread for value, spread in zip(values, spreads)]
+            axis.semilogy(snr_values, values, marker="o", label=estimator)
+            axis.fill_between(snr_values, lower, upper, alpha=0.12)
+        axis.set_xlabel("SNR (dB)")
+        axis.set_ylabel("NMSE")
+        axis.set_title(channel_model.upper())
+        axis.grid(True, which="both", alpha=0.35)
+        axis.legend()
+    for axis in list(axes.flat)[len(channel_models):]:
+        axis.set_visible(False)
+    figure.suptitle(title)
     figure.tight_layout()
     figure.savefig(path, dpi=160)
     plt.close(figure)

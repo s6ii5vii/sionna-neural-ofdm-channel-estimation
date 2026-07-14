@@ -18,6 +18,8 @@ from .train import train_model
 
 DEFAULT_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c")
 DEFAULT_SEEDS = (42, 43, 44)
+MODEL_SEED_OFFSET = 50_000
+EVALUATION_SEED_OFFSET = 100_000
 
 
 def _safe_token(value: object) -> str:
@@ -35,11 +37,12 @@ def build_sweep_config(
     config = copy.deepcopy(base_config)
     config["experiment"]["name"] = run_name
     config["experiment"]["channel-model"] = channel_model
-    config["experiment"]["random-seed"] = seed
+    config["experiment"]["random-seed"] = seed + EVALUATION_SEED_OFFSET
 
     training = config["training"]
     training["dataset-path"] = f"data/{run_name}-dataset.npz"
     training["checkpoint-path"] = f"results/checkpoints/{run_name}.pt"
+    training["model-seed"] = seed + MODEL_SEED_OFFSET
     generation = training.get("dataset-generation")
     if isinstance(generation, dict):
         generation["random-seed"] = seed
@@ -95,10 +98,15 @@ def summarize_neural_margins(
     margins: dict[tuple[str, float], list[float]] = defaultdict(list)
     wins: dict[tuple[str, float], list[int]] = defaultdict(list)
     for (channel_model, _seed, snr_db), estimators in grouped.items():
-        if baseline not in estimators or neural not in estimators:
-            continue
+        missing = [name for name in (baseline, neural) if name not in estimators]
+        if missing:
+            raise ValueError(
+                f"Missing estimators {missing} for {channel_model}, seed {_seed}, SNR {snr_db}."
+            )
         baseline_nmse = estimators[baseline]
         neural_nmse = estimators[neural]
+        if baseline_nmse <= 0:
+            raise ValueError("Baseline NMSE must be positive when computing margins.")
         key = (channel_model, snr_db)
         margins[key].append(100.0 * (baseline_nmse - neural_nmse) / baseline_nmse)
         wins[key].append(1 if neural_nmse < baseline_nmse else 0)
@@ -162,6 +170,7 @@ def run_grid_validation_sweep(
                     {
                         "channel-model": channel_model,
                         "random-seed": int(seed),
+                        "evaluation-seed": int(config["experiment"]["random-seed"]),
                         **row,
                     }
                 )
@@ -174,7 +183,9 @@ def run_grid_validation_sweep(
     figure_path = figure_dir / f"{base_name}-sweep-v1-nmse.png"
 
     estimator_summary = summarize_estimator_rows(raw_rows)
-    margin_summary = summarize_neural_margins(raw_rows)
+    margin_summary = summarize_neural_margins(raw_rows, baseline="ls-lin")
+    if any(row["estimator"] == "lmmse" for row in raw_rows):
+        margin_summary.extend(summarize_neural_margins(raw_rows, baseline="lmmse"))
     write_metrics_table(raw_rows, raw_path)
     write_table(estimator_summary, summary_path)
     write_table(margin_summary, margins_path)

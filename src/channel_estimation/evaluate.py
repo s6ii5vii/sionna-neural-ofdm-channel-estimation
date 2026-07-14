@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from .baselines import grid_ls_estimate, least_squares_estimate
+from .baselines import grid_lmmse_estimate, grid_ls_estimate, least_squares_estimate
 from .config import load_config, resolve_path
 from .dataset import complex_to_features, features_to_complex
 from .metrics import normalized_mean_squared_error
@@ -82,7 +82,7 @@ def _load_neural_estimator(config: dict[str, Any]) -> Any:
         filters=int(neural["filters"]),
         num_layers=int(neural["num-layers"]),
     )
-    state = torch.load(checkpoint, map_location="cpu")
+    state = torch.load(checkpoint, map_location="cpu", weights_only=True)
     model.load_state_dict(state)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -155,6 +155,16 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
                     "estimator": f"ls-{interpolation}",
                     "snr-db": float(snr_db),
                     "nmse": normalized_mean_squared_error(h_freq_np, h_hat),
+                    "num-samples": int(num_samples),
+                }
+            )
+        if spec.channel_kind.startswith("tdl-"):
+            h_hat_lmmse = grid_lmmse_estimate(y, no, resource_grid, spec)
+            rows.append(
+                {
+                    "estimator": "lmmse",
+                    "snr-db": float(snr_db),
+                    "nmse": normalized_mean_squared_error(h_freq_np, h_hat_lmmse),
                     "num-samples": int(num_samples),
                 }
             )
