@@ -21,7 +21,17 @@ def test_grid_lmmse_rejects_non_tdl_channel():
         grid_lmmse_estimate(None, 0.1, None, _RayleighSpec())
 
 
-def test_grid_lmmse_uses_single_precision_covariances(monkeypatch):
+@pytest.mark.parametrize(
+    ("channel_kind", "max_doppler_hz", "delay_spread_ns", "order"),
+    [
+        ("tdl-a", 0.0, 100.0, "f-t"),
+        ("tdl-c", 70.0, 300.0, "t-f"),
+        ("tdl-e", 250.0, 1000.0, "f-t"),
+    ],
+)
+def test_grid_lmmse_uses_single_precision_covariances_across_tdl_profiles(
+    monkeypatch, channel_kind, max_doppler_hz, delay_spread_ns, order
+):
     calls = {}
 
     class FakeInterpolator:
@@ -35,11 +45,20 @@ def test_grid_lmmse_uses_single_precision_covariances(monkeypatch):
         def __call__(self, _received, _noise):
             return np.ones((1, 1), dtype=np.complex64), None
 
-    def fake_frequency(*_args, **kwargs):
+    def fake_frequency(model, spacing, subcarriers, delay_spread, **kwargs):
+        calls["frequency-model"] = model
+        calls["frequency-spacing"] = spacing
+        calls["frequency-subcarriers"] = subcarriers
+        calls["frequency-delay-spread"] = delay_spread
         calls["frequency-precision"] = kwargs.get("precision")
         return object()
 
-    def fake_time(*_args, **kwargs):
+    def fake_time(model, speed, carrier_frequency, symbol_duration, symbols, **kwargs):
+        calls["time-model"] = model
+        calls["time-speed"] = speed
+        calls["time-carrier-frequency"] = carrier_frequency
+        calls["time-symbol-duration"] = symbol_duration
+        calls["time-symbols"] = symbols
         calls["time-precision"] = kwargs.get("precision")
         return object()
 
@@ -51,21 +70,34 @@ def test_grid_lmmse_uses_single_precision_covariances(monkeypatch):
     monkeypatch.setitem(sys.modules, "sionna.phy.ofdm", fake_ofdm)
 
     spec = SimpleNamespace(
-        channel_kind="tdl-a",
-        max_doppler_hz=0.0,
+        channel_kind=channel_kind,
+        max_doppler_hz=max_doppler_hz,
         carrier_frequency_hz=3.5e9,
         num_subcarriers=72,
         cyclic_prefix_length=6,
         subcarrier_spacing_hz=30e3,
-        delay_spread_ns=100.0,
+        delay_spread_ns=delay_spread_ns,
         num_ofdm_symbols=14,
     )
     grid = SimpleNamespace(pilot_pattern=object())
 
-    result = grid_lmmse_estimate(object(), 0.1, grid, spec)
+    result = grid_lmmse_estimate(object(), 0.1, grid, spec, order=order)
 
     assert result.dtype == np.complex64
+    assert calls["order"] == order
+    assert calls["frequency-model"] == channel_kind.removeprefix("tdl-").upper()
+    assert calls["frequency-spacing"] == spec.subcarrier_spacing_hz
+    assert calls["frequency-subcarriers"] == spec.num_subcarriers
+    assert calls["frequency-delay-spread"] == pytest.approx(delay_spread_ns * 1e-9)
     assert calls["frequency-precision"] == "single"
+    assert calls["time-model"] == channel_kind.removeprefix("tdl-").upper()
+    assert calls["time-speed"] >= 0.0
+    assert calls["time-carrier-frequency"] == spec.carrier_frequency_hz
+    assert calls["time-symbol-duration"] == pytest.approx(
+        (spec.num_subcarriers + spec.cyclic_prefix_length)
+        / (spec.num_subcarriers * spec.subcarrier_spacing_hz)
+    )
+    assert calls["time-symbols"] == spec.num_ofdm_symbols
     assert calls["time-precision"] == "single"
 
 
