@@ -52,9 +52,14 @@ Implemented:
 - repeated-seed validation sweeps across TDL channel models;
 - tests for datasets, metrics, LS, and LMMSE baselines.
 
-The Sionna simulation, grid baselines, and neural comparison have been exercised
-interactively, but are not executed in CI (they require Sionna 2.x, PyTorch, and
-ideally a GPU). Generated results still require review before interpretation.
+A July 2026 interactive notebook run of the grid neural comparison validated the
+current TDL-A experiment path with 1,000 evaluation samples per SNR. In that run,
+the CNN substantially improved over LS interpolation across the tested SNR
+range, while model-informed LMMSE remained the strongest estimator because it
+uses the configured TDL covariance structure. The Sionna simulation, grid
+baselines, and neural comparison are not executed in CI (they require Sionna
+2.x, PyTorch, and ideally a GPU), so broader robustness claims still require
+the repeated-channel sweep below.
 
 Planned:
 
@@ -172,6 +177,26 @@ python experiments/grid-neural-comparison-v1/run-experiment.py
 Requires the ml stack. An experimental Colab helper notebook is available under
 `notebooks/`, but validate its outputs before interpreting results.
 
+The latest validated single-run pattern is:
+
+- LS interpolation error decreases with SNR but remains the weakest family;
+- the CNN is consistently better than LS-nn and LS-lin in the tested TDL-A run;
+- LMMSE is best overall and should be framed as a model-informed upper classical
+  benchmark, not as a resource-equivalent learned baseline.
+
+Run the broader robustness sweep across TDL profiles and seeds with:
+
+```bash
+python experiments/grid-neural-comparison-v1/run-sweep.py \
+  experiments/grid-neural-comparison-v1/config.yaml \
+  --channel-models tdl-a,tdl-b,tdl-c \
+  --seeds 42,43,44
+```
+
+The sweep retrains each CNN for its channel/seed configuration, evaluates LS,
+LMMSE, and CNN at every configured SNR, and writes raw, summary, margin, and
+figure artifacts under `results/`.
+
 ## Inspect or regenerate the dataset
 
 ```python
@@ -215,7 +240,9 @@ mapping and boundaries.
 - The current NumPy model is a simplified independent Rayleigh/AWGN pilot model,
   not a complete standards-compliant link simulation.
 - The committed dataset was generated at one SNR with unit pilots.
-- No reviewed neural performance claim is reported yet.
+- The current validated single TDL-A notebook run supports only a narrow
+  performance statement: the CNN beats LS interpolation on that run, while
+  covariance-informed LMMSE remains stronger.
 - LMMSE now uses a covariance matrix estimated from channel realizations; it is
   only as good as that covariance assumption and the data it is estimated from.
 - BER is implemented as a metric utility but is not yet connected to an

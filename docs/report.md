@@ -6,9 +6,12 @@ This living report describes an early-stage reproducible study of pilot-based
 OFDM channel estimation under constrained conditions. The current codebase
 implements a simplified Rayleigh/AWGN simulation, Sionna resource-grid
 simulation, classical estimators, dataset tooling, and an intentionally small
-neural estimator. No reviewed neural performance claim is made. Experiments evaluate whether a
-lightweight model offers useful error or robustness tradeoffs under low SNR,
-sparse pilots, limited data, and compute constraints.
+neural estimator. A July 2026 validation notebook shows the CNN improving over
+LS interpolation on the configured TDL-A grid run, while covariance-informed
+LMMSE remains the strongest estimator. Broader robustness claims require the
+planned repeated-channel sweep. Experiments evaluate whether a lightweight model
+offers useful error or robustness tradeoffs under low SNR, sparse pilots,
+limited data, and compute constraints.
 
 ## Introduction
 
@@ -59,15 +62,24 @@ selection are implemented; broader ablations remain to be completed.
 
 The implemented baseline profile sweeps LS NMSE over SNR. The first
 low-resource profile reduces pilot density and evaluation sample count while
-declaring data and model-size targets. Repeated-seed validation across
-standardized Sionna TDL channel profiles is implemented.
+declaring data and model-size targets. The grid neural comparison evaluates
+LS-nn, LS-lin, model-informed LMMSE, and a small CNN on a Sionna TDL resource
+grid. Repeated-seed validation across standardized Sionna TDL channel profiles
+is implemented.
 
 ## Results
 
-No reviewed neural-estimator results are reported yet.
+The latest validated notebook run used the grid neural comparison over TDL-A
+with 1,000 evaluation samples per SNR. It produced the expected monotonic NMSE
+improvement with SNR for every estimator. The CNN substantially reduced NMSE
+relative to LS interpolation at each tested SNR, while LMMSE produced the lowest
+NMSE overall. This supports a narrow current conclusion: the lightweight CNN is
+useful versus LS interpolation in the validated TDL-A setting, but it does not
+beat the model-informed LMMSE benchmark.
 
-Future tables should include LS and neural NMSE by SNR, repeated-seed variation,
-pilot density, training-data volume, parameter count, model size, and measured
+The next evidence target is the repeated-channel robustness sweep across TDL
+profiles and seeds. Future tables should include repeated-seed variation, pilot
+density, training-data volume, parameter count, model size, and measured
 latency. BER should be reported only after an end-to-end decision path exists.
 
 ## Limitations
