@@ -8,13 +8,12 @@ constrained conditions. The current codebase implements a simplified
 Rayleigh/AWGN (additive white Gaussian noise) simulation, Sionna resource-grid
 simulation, classical estimators, dataset tooling, and an intentionally small
 neural estimator. A July 2026 validation notebook shows the CNN (convolutional
-neural network) improving over LS (least-squares) interpolation on the
-configured TDL-A (tapped delay line A) grid run, while covariance-informed LMMSE
-(linear minimum mean squared error) remains the strongest estimator. Broader
-robustness claims require the planned repeated-channel sweep. Experiments
-evaluate whether a lightweight model offers useful error or robustness
-tradeoffs under low SNR (signal-to-noise ratio), sparse pilots, limited data,
-and compute constraints.
+neural network) improving over LS (least-squares) interpolation across TDL-A
+(tapped delay line A), TDL-B (tapped delay line B), and TDL-C (tapped delay line
+C), while covariance-informed LMMSE (linear minimum mean squared error) remains
+the strongest estimator. Experiments evaluate whether a lightweight model offers
+useful error or robustness tradeoffs under low SNR (signal-to-noise ratio),
+sparse pilots, limited data, and compute constraints.
 
 ## Introduction
 
@@ -83,33 +82,35 @@ channel profiles is implemented.
 ## Results
 
 The latest validated notebook run used the grid neural comparison over TDL-A
-(tapped delay line A) with 1,000 evaluation samples per SNR (signal-to-noise
-ratio). It produced the expected monotonic NMSE (normalized mean squared error)
-improvement with SNR for every estimator. The CNN (convolutional neural network)
-substantially reduced NMSE relative to LS (least-squares) interpolation at each
-tested SNR, while LMMSE (linear minimum mean squared error) produced the lowest
-NMSE overall. This supports a narrow current conclusion: the lightweight CNN is
-useful versus LS interpolation in the validated TDL-A setting, but it does not
-beat the model-informed LMMSE benchmark.
+(tapped delay line A), TDL-B (tapped delay line B), and TDL-C (tapped delay line
+C), with three random seeds per channel profile and 1,000 evaluation samples per
+SNR (signal-to-noise ratio). It produced the expected monotonic NMSE (normalized
+mean squared error) improvement with SNR for every estimator. The CNN
+(convolutional neural network) substantially reduced NMSE relative to LS-lin
+(least-squares with linear interpolation), with 100% win rate across the 15
+channel/SNR combinations and mean improvement ranging from 78.75% to 87.07%.
+LMMSE (linear minimum mean squared error) still produced the lowest NMSE in
+every tested case. This supports a stronger but still bounded conclusion: the
+lightweight CNN is robustly useful versus LS interpolation across the tested
+TDL-A/B/C settings, but it does not beat the model-informed LMMSE benchmark.
 
-The next evidence target is the repeated-channel robustness sweep across TDL
-(tapped delay line) profiles and seeds. Future tables should include
-repeated-seed variation, pilot density, training-data volume, parameter count,
-model size, and measured latency. BER (bit error rate) should be reported only
-after an end-to-end decision path exists.
+The next evidence target is out-of-distribution evaluation without retraining.
+Future tables should include pilot density, training-data volume, parameter
+count, model size, and measured latency. BER (bit error rate) should be reported
+only after an end-to-end decision path exists.
 
 ## Limitations
 
-The committed sample dataset uses one SNR (signal-to-noise ratio), the grid CNN
-(convolutional neural network) trains at one SNR, the grid LMMSE (linear minimum
-mean squared error) benchmark assumes knowledge of the configured TDL (tapped
-delay line) profile, and no end-to-end BER (bit error rate) receiver is
-connected yet.
+The committed sample dataset uses one SNR (signal-to-noise ratio), each grid
+CNN (convolutional neural network) in the sweep trains at one dataset-generation
+SNR, the grid LMMSE (linear minimum mean squared error) benchmark assumes
+knowledge of the configured TDL (tapped delay line) profile, and no end-to-end
+BER (bit error rate) receiver is connected yet.
 
 ## Future work
 
-1. Review repeated-seed validation results.
-2. Evaluate out-of-distribution channel conditions without retraining.
+1. Evaluate out-of-distribution channel conditions without retraining.
+2. Add cross-profile training/evaluation matrices.
 3. Add pilot-pattern and mixed-SNR ablations.
 4. Measure memory use and operation count alongside corrected latency metrics.
 5. Connect BER to a documented end-to-end receiver.

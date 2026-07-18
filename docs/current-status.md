@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: 2026-07-14
+Last updated: 2026-07-18
 
 ## Summary
 
@@ -12,9 +12,10 @@ the small CNN (convolutional neural network) improves substantially over LS
 mean squared error) remains the strongest estimator because it uses the
 configured TDL (tapped delay line) channel covariance structure.
 
-The current result should be framed as a validated single-condition result, not
-yet as a broad robustness claim. The next evidence target is the repeated TDL
-(tapped delay line) channel and seed sweep.
+The current result should be framed as a validated robustness result across the
+tested TDL (tapped delay line) profiles, not yet as a universal wireless-channel
+claim. The next evidence target is out-of-distribution evaluation without
+retraining.
 
 ## What Works Now
 
@@ -42,19 +43,32 @@ yet as a broad robustness claim. The next evidence target is the repeated TDL
 
 ## Latest Validated Result
 
-The latest notebook validation used the grid neural comparison experiment over a
-TDL-A (tapped delay line A) channel with 1,000 evaluation samples per SNR
-(signal-to-noise ratio).
+The latest notebook validation used the grid neural comparison experiment over
+TDL-A (tapped delay line A), TDL-B (tapped delay line B), and TDL-C (tapped
+delay line C), with three random seeds per channel profile and 1,000 evaluation
+samples per SNR (signal-to-noise ratio). The run used commit
+`df071f5cf948d01113b21b7f991bc59b68fbd99d` in a Colab GPU (graphics processing
+unit) environment with Sionna 2.0.1 and PyTorch 2.11.0.
 
-Observed NMSE (normalized mean squared error) pattern:
+Mean NMSE (normalized mean squared error) pattern across three seeds:
 
-| SNR (signal-to-noise ratio, dB) | LS-nn (least-squares with nearest-neighbor interpolation) | LS-lin (least-squares with linear interpolation) | LMMSE (linear minimum mean squared error) | Neural CNN (convolutional neural network) |
-| ---: | ---: | ---: | ---: | ---: |
-| -5 | 3.169561 | 2.856816 | 0.044503 | 0.418829 |
-| 0 | 1.002303 | 0.903405 | 0.017139 | 0.122998 |
-| 5 | 0.316956 | 0.285682 | 0.006320 | 0.037841 |
-| 10 | 0.100230 | 0.090340 | 0.002263 | 0.013734 |
-| 15 | 0.031696 | 0.028568 | 0.000819 | 0.006667 |
+| Channel | SNR (signal-to-noise ratio, dB) | LS-lin (least-squares with linear interpolation) | LMMSE (linear minimum mean squared error) | Neural CNN (convolutional neural network) |
+| --- | ---: | ---: | ---: | ---: |
+| TDL-A | -5 | 2.929670 | 0.046973 | 0.429709 |
+| TDL-A | 0 | 0.926443 | 0.018089 | 0.124818 |
+| TDL-A | 5 | 0.292967 | 0.006671 | 0.037888 |
+| TDL-A | 10 | 0.092644 | 0.002380 | 0.013392 |
+| TDL-A | 15 | 0.029297 | 0.000857 | 0.006219 |
+| TDL-B | -5 | 2.898596 | 0.047160 | 0.451389 |
+| TDL-B | 0 | 0.916617 | 0.017956 | 0.129753 |
+| TDL-B | 5 | 0.289860 | 0.006427 | 0.038592 |
+| TDL-B | 10 | 0.091662 | 0.002189 | 0.013147 |
+| TDL-B | 15 | 0.028986 | 0.000754 | 0.005771 |
+| TDL-C | -5 | 2.887714 | 0.047799 | 0.457173 |
+| TDL-C | 0 | 0.913175 | 0.019403 | 0.129366 |
+| TDL-C | 5 | 0.288771 | 0.007192 | 0.037892 |
+| TDL-C | 10 | 0.091318 | 0.002584 | 0.012898 |
+| TDL-C | 15 | 0.028877 | 0.000907 | 0.005757 |
 
 Interpretation:
 
@@ -65,9 +79,11 @@ Interpretation:
   (least-squares with linear interpolation) across all tested SNR values.
 - LMMSE (linear minimum mean squared error) is best overall because it is
   model-informed and uses TDL (tapped delay line) covariance assumptions.
-- The strongest defensible claim is that the CNN is useful versus LS
-  interpolation in this validated TDL-A (tapped delay line A) setting, not that
-  it beats the strongest classical benchmark.
+- The CNN has a 100% win rate against LS-lin across the 15 channel/SNR
+  combinations, with mean improvement ranging from 78.75% to 87.07%.
+- The strongest defensible claim is now that the CNN is robustly useful versus
+  LS interpolation across the tested TDL-A/B/C profiles, not that it beats the
+  strongest model-informed classical benchmark.
 
 ## Recent Work Completed
 
@@ -78,6 +94,8 @@ Interpretation:
 - Validated the local non-ML (machine learning) test suite after the LMMSE
   changes.
 - Updated the README and living report with the current validated takeaway.
+- Ran the repeated-channel robustness sweep across TDL-A, TDL-B, and TDL-C with
+  seeds 42, 43, and 44.
 - Fixed the grid neural sweep wrapper so it accepts the package CLI (command
   line interface) flags for channel models and seeds.
 - Pushed the latest updates to `origin/main`.
@@ -86,6 +104,7 @@ Recent commits:
 
 - `c54a60a test lmmse robustness across tdl profiles`
 - `0e496a7 document validated grid comparison`
+- `df071f5 fix grid sweep colab handoff`
 
 ## Verification Evidence
 
@@ -98,8 +117,15 @@ python -m pytest
 
 The skipped tests are expected in the current local Windows environment because
 `torch` and `sionna` are not installed there. The real grid neural experiment
-and robustness sweep should be run in the notebook or ML (machine learning)
-environment where those dependencies are available.
+and robustness sweep were run in the notebook ML (machine learning) environment
+where those dependencies are available.
+
+The Colab run also completed the full test suite:
+
+```text
+python -m pytest -q
+62 passed in 7.91s
+```
 
 The sweep CLI (command line interface) is now available:
 
@@ -114,8 +140,6 @@ It exposes:
 
 ## What Is Not Proven Yet
 
-- The CNN (convolutional neural network) has not yet been proven robust across
-  multiple TDL (tapped delay line) profiles and seeds.
 - The CNN has not yet been evaluated as an out-of-distribution estimator without
   retraining.
 - The current CNN trains at one dataset-generation SNR (signal-to-noise ratio).
@@ -129,30 +153,8 @@ It exposes:
 
 ## Next Step
 
-Run the repeated-channel robustness sweep in the ML (machine learning)
-environment:
-
-```bash
-python experiments/grid-neural-comparison-v1/run-sweep.py \
-  experiments/grid-neural-comparison-v1/config.yaml \
-  --channel-models tdl-a,tdl-b,tdl-c \
-  --seeds 42,43,44
-```
-
-That command retrains the CNN (convolutional neural network) for each
-channel/seed configuration, evaluates LS-nn (least-squares with
-nearest-neighbor interpolation), LS-lin (least-squares with linear
-interpolation), LMMSE (linear minimum mean squared error), and CNN at every
-configured SNR (signal-to-noise ratio), and writes raw, summary, margin, and
-figure artifacts under `results/`.
-
-After the sweep completes, the next documentation update should summarize:
-
-- CNN (convolutional neural network) versus LS (least-squares) improvement by
-  channel model and SNR (signal-to-noise ratio).
-- CNN versus LMMSE (linear minimum mean squared error) gap by channel model and
-  SNR.
-- Variation across seeds.
-- Any channel profiles where the CNN gain is weak or unstable.
-- Whether the result supports a broader robustness claim or only a narrower
-  TDL-A (tapped delay line A)-style claim.
+Evaluate out-of-distribution behavior without retraining. Reason: the completed
+robustness sweep retrained a CNN (convolutional neural network) for each TDL
+(tapped delay line) channel profile, so the next harder question is whether a
+CNN trained on one profile or SNR (signal-to-noise ratio) range still helps when
+the channel model, mobility, delay spread, or SNR distribution shifts.

@@ -61,16 +61,16 @@ Implemented:
   mean squared error) baselines.
 
 A July 2026 interactive notebook run of the grid neural comparison validated the
-current TDL-A (tapped delay line A) experiment path with 1,000 evaluation
-samples per SNR (signal-to-noise ratio). In that run, the CNN (convolutional
-neural network) substantially improved over LS (least-squares) interpolation
-across the tested SNR range, while model-informed LMMSE (linear minimum mean
+current TDL-A/B/C (tapped delay line A/B/C) robustness sweep with three random
+seeds per channel profile and 1,000 evaluation samples per SNR
+(signal-to-noise ratio). In that run, the CNN (convolutional neural network)
+substantially improved over LS (least-squares) interpolation across the tested
+SNR range and channel profiles, while model-informed LMMSE (linear minimum mean
 squared error) remained the strongest estimator because it uses the configured
 TDL (tapped delay line) covariance structure. The Sionna simulation, grid
 baselines, and neural comparison are not executed in CI (continuous
 integration) because they require Sionna 2.x, PyTorch, and ideally a GPU
-(graphics processing unit), so broader robustness claims still require the
-repeated-channel sweep below.
+(graphics processing unit).
 
 Planned:
 
@@ -198,17 +198,20 @@ Requires the ML (machine learning) stack. An experimental Colab helper notebook
 is available under `notebooks/`, but validate its outputs before interpreting
 results.
 
-The latest validated single-run pattern is:
+The latest validated robustness pattern is:
 
 - LS (least-squares) interpolation error decreases with SNR (signal-to-noise
   ratio) but remains the weakest family;
 - the CNN (convolutional neural network) is consistently better than LS-nn
   (least-squares with nearest-neighbor interpolation) and LS-lin
-  (least-squares with linear interpolation) in the tested TDL-A (tapped delay
-  line A) run;
+  (least-squares with linear interpolation) in the tested TDL-A/B/C (tapped
+  delay line A/B/C) sweep;
 - LMMSE (linear minimum mean squared error) is best overall and should be
   framed as a model-informed upper classical benchmark, not as a
   resource-equivalent learned baseline.
+- Against LS-lin, the CNN reached a 100% win rate across 15 channel/SNR
+  (signal-to-noise ratio) combinations, with mean improvement ranging from
+  78.75% to 87.07%.
 
 Run the broader robustness sweep across TDL (tapped delay line) profiles and
 seeds with:
@@ -272,10 +275,11 @@ mapping and boundaries.
   simulation.
 - The committed dataset was generated at one SNR (signal-to-noise ratio) with
   unit pilots.
-- The current validated single TDL-A (tapped delay line A) notebook run
-  supports only a narrow performance statement: the CNN (convolutional neural
-  network) beats LS (least-squares) interpolation on that run, while
-  covariance-informed LMMSE (linear minimum mean squared error) remains stronger.
+- The current validated TDL-A/B/C (tapped delay line A/B/C) notebook sweep
+  supports a bounded performance statement: the CNN (convolutional neural
+  network) robustly beats LS (least-squares) interpolation across the tested
+  profiles, while covariance-informed LMMSE (linear minimum mean squared error)
+  remains stronger.
 - LMMSE now uses a covariance matrix estimated from channel realizations; it is
   only as good as that covariance assumption and the data it is estimated from.
 - BER (bit error rate) is implemented as a metric utility but is not yet
