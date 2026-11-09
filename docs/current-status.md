@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: 2026-07-18
+Last updated: 2026-11-09
 
 ## Summary
 
@@ -151,9 +151,32 @@ It exposes:
 - LMMSE (linear minimum mean squared error) should continue to be described as
   model-informed, not resource equivalent to the CNN.
 
+## In Progress: Grid Comparison v2
+
+`experiments/grid-neural-comparison-v2/` is implemented and unit-tested, but
+not yet validated on a GPU. It addresses the main weaknesses of the v1 setup:
+
+- v1's channel is nearly flat (100 ns delay spread over about 2.2 MHz) and
+  static, and pilots fill every subcarrier of the pilot symbols, so the task is
+  mostly denoising. That is also why TDL-A/B/C give almost identical NMSE
+  (normalized mean squared error) in v1.
+- v2 uses 144 subcarriers, 300 ns delay spread, 200 Hz Doppler, and pilots on
+  every 4th subcarrier.
+- The v1 CNN (convolutional neural network) sees a 9x9 patch, trains at 10 dB
+  only, and is not told the SNR (signal-to-noise ratio). The v2 CNN uses dilated
+  convolutions (33x33), a residual output, SNR input, and training across
+  -5 to 15 dB.
+- v2 adds an `lmmse-mismatched` baseline whose covariances assume TDL-A, 100 ns,
+  and no mobility. This is the comparison where a learned estimator can
+  realistically be competitive.
+
+Sionna is now pinned to `>=2.0,<2.1` because `LMMSEInterpolator` is not
+exported by Sionna 2.1.0 or 2.2.0.
+
 ## Next Step
 
-Evaluate out-of-distribution behavior without retraining. Reason: the completed
+Run the v2 training, comparison, and TDL-A/B/C sweep on a GPU and record the
+results here. After that, evaluate out-of-distribution behavior without retraining. Reason: the completed
 robustness sweep retrained a CNN (convolutional neural network) for each TDL
 (tapped delay line) channel profile, so the next harder question is whether a
 CNN trained on one profile or SNR (signal-to-noise ratio) range still helps when
