@@ -28,6 +28,7 @@ EXPECTED_SPLIT_KEYS = (
     "y_test",
 )
 DATASET_METADATA_KEY = "metadata_json"
+SNR_SPLIT_KEYS = ("snr_db_train", "snr_db_val", "snr_db_test")
 
 
 def _grid_generator_code_hash() -> str:
@@ -54,6 +55,7 @@ def grid_dataset_metadata(config: Mapping[str, object]) -> dict[str, object]:
                 "channel-model",
                 "delay-spread-ns",
                 "max-doppler-hz",
+                "pilot-subcarrier-spacing",
             )
         },
         "generation": generation,
@@ -218,11 +220,56 @@ def generate_synthetic_dataset(
     return split_dataset(inputs, targets)
 
 
+def batch_snr_schedule(
+    snr_db: float | tuple[float, float] | list[float],
+    num_batches: int,
+    random_seed: int,
+) -> NDArray[np.float64]:
+    """Return the SNR (dB) used for each generated batch.
+
+    a single number gives a fixed SNR. a ``[low, high]`` pair draws one SNR per
+    batch uniformly from that range so a model can be trained across operating
+    points instead of at one favorable SNR. the draw uses its own generator
+    seeded by ``random_seed`` and is therefore reproducible.
+    """
+    if num_batches <= 0:
+        raise ValueError("num_batches must be positive.")
+    if isinstance(snr_db, (list, tuple)):
+        if len(snr_db) != 2:
+            raise ValueError("An SNR range must be a [low, high] pair.")
+        low, high = float(snr_db[0]), float(snr_db[1])
+        if not (np.isfinite(low) and np.isfinite(high)) or low >= high:
+            raise ValueError("An SNR range must be finite with low < high.")
+        rng = np.random.default_rng(random_seed)
+        return rng.uniform(low, high, size=num_batches)
+    value = float(snr_db)
+    if not np.isfinite(value):
+        raise ValueError("snr_db must be finite.")
+    return np.full(num_batches, value)
+
+
+def split_snr_values(
+    snr_values: ArrayLike,
+    *,
+    train_fraction: float = 0.7,
+    validation_fraction: float = 0.15,
+) -> dict[str, NDArray[np.generic]]:
+    """Split per-sample SNR values with the same boundaries as ``split_dataset``."""
+    values = np.asarray(snr_values)
+    train_end = int(len(values) * train_fraction)
+    validation_end = train_end + int(len(values) * validation_fraction)
+    return {
+        "snr_db_train": values[:train_end],
+        "snr_db_val": values[train_end:validation_end],
+        "snr_db_test": values[validation_end:],
+    }
+
+
 def generate_grid_dataset(
     spec: "GridSpec",
     *,
     num_samples: int = 2000,
-    snr_db: float = 10.0,
+    snr_db: float | tuple[float, float] | list[float] = 10.0,
     random_seed: int = 42,
     batch_size: int = 256,
     input_source: str = "received",
@@ -237,6 +284,10 @@ def generate_grid_dataset(
     least-squares interpolation as a denoising/refinement input. produces arrays shaped
     ``(samples, num-ofdm-symbols, num-subcarriers, 2)``.
 
+    ``snr_db`` is either one value or a ``[low, high]`` range; with a range each
+    batch is simulated at its own SNR (see ``batch_snr_schedule``). the SNR of
+    every sample is stored as ``snr_db_train``/``snr_db_val``/``snr_db_test``.
+
     this requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm``
     is imported lazily so the rest of the dataset utilities stay usable without
     it. it has not been executed in this environment.
@@ -248,16 +299,21 @@ def generate_grid_dataset(
 
     from .sionna_ofdm import simulate_grid, simulate_grid_tensors, to_numpy
 
+    num_batches = -(-num_samples // batch_size)
+    snr_schedule = batch_snr_schedule(snr_db, num_batches, random_seed)
+
     received_batches: list[NDArray[np.complexfloating]] = []
     channel_batches: list[NDArray[np.complexfloating]] = []
+    snr_batches: list[NDArray[np.floating]] = []
     collected = 0
     batch_index = 0
     while collected < num_samples:
         this_batch = min(batch_size, num_samples - collected)
+        batch_snr = float(snr_schedule[batch_index])
         if input_source == "received":
             received, channels, _no = simulate_grid(
                 spec,
-                snr_db,
+                batch_snr,
                 batch_size=this_batch,
                 seed=random_seed + batch_index,
             )
@@ -266,7 +322,7 @@ def generate_grid_dataset(
 
             y, h_freq, no, resource_grid = simulate_grid_tensors(
                 spec,
-                snr_db,
+                batch_snr,
                 batch_size=this_batch,
                 seed=random_seed + batch_index,
             )
@@ -279,6 +335,7 @@ def generate_grid_dataset(
             )
         received_batches.append(received)
         channel_batches.append(channels)
+        snr_batches.append(np.full(this_batch, batch_snr, dtype=np.float32))
         collected += this_batch
         batch_index += 1
 
@@ -286,7 +343,9 @@ def generate_grid_dataset(
     channels = np.concatenate(channel_batches, axis=0)
     inputs = complex_to_features(observations).astype(dtype)
     targets = complex_to_features(channels).astype(dtype)
-    return split_dataset(inputs, targets)
+    dataset = split_dataset(inputs, targets)
+    dataset.update(split_snr_values(np.concatenate(snr_batches)))
+    return dataset
 
 
 def save_npz_dataset(
