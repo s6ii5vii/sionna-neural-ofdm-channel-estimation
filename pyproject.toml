@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ml = ["sionna>=2.0", "torch>=2.9", "numba>=0.60,<0.62"]
+ml = ["sionna>=2.0,<2.3", "torch>=2.9", "numba>=0.60,<0.62"]
 test = ["pytest>=8.0"]
 
 [tool.setuptools.packages.find]

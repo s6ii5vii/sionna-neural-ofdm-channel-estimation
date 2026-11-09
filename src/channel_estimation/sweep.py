@@ -184,8 +184,11 @@ def run_grid_validation_sweep(
 
     estimator_summary = summarize_estimator_rows(raw_rows)
     margin_summary = summarize_neural_margins(raw_rows, baseline="ls-lin")
-    if any(row["estimator"] == "lmmse" for row in raw_rows):
-        margin_summary.extend(summarize_neural_margins(raw_rows, baseline="lmmse"))
+    for baseline in ("lmmse", "lmmse-mismatched"):
+        if any(row["estimator"] == baseline for row in raw_rows):
+            margin_summary.extend(
+                summarize_neural_margins(raw_rows, baseline=baseline)
+            )
     write_metrics_table(raw_rows, raw_path)
     write_table(estimator_summary, summary_path)
     write_table(margin_summary, margins_path)

@@ -74,6 +74,8 @@ integration) because they require Sionna 2.x, PyTorch, and ideally a GPU
 
 Planned:
 
+- validating the harder v2 grid comparison (sparse pilots, mobility, SNR-range
+  training, mismatched LMMSE (linear minimum mean squared error)) on a GPU;
 - out-of-distribution robustness sweeps without retraining;
 - controlled neural architecture and dataset-size ablations;
 - BER (bit error rate) evaluation through an end-to-end link;
@@ -227,6 +229,44 @@ The sweep retrains each CNN (convolutional neural network) for its channel/seed
 configuration, evaluates LS (least-squares), LMMSE (linear minimum mean squared
 error), and CNN at every configured SNR (signal-to-noise ratio), and writes raw,
 summary, margin, and figure artifacts under `results/`.
+
+## Harder grid comparison (v2)
+
+`experiments/grid-neural-comparison-v2/` keeps the v1 pipeline but makes the
+estimation problem harder and the comparison fairer. In v1 the channel is
+nearly flat across the 72-subcarrier band (100 ns delay spread), static (0 Hz
+Doppler), and pilots fill every subcarrier of the two pilot symbols, so the
+task is mostly denoising and the TDL (tapped delay line) profiles look almost
+identical. v2 changes:
+
+- **Channel:** 144 subcarriers, 300 ns delay spread, and 200 Hz maximum Doppler
+  (about 62 km/h at 3.5 GHz), so the channel varies in frequency and time.
+- **Sparse pilots:** `pilot-subcarrier-spacing: 4` places pilots on every 4th
+  subcarrier (plus the last one) of each pilot symbol, so estimators must
+  interpolate across frequency as well as time.
+- **CNN (convolutional neural network):** dilated convolutions
+  (`dilations: [1, 2, 4, 8]`, a 33x33 receptive field instead of 9x9 in v1), a
+  residual output added to the LS-lin (least-squares with linear interpolation)
+  input, and the SNR (signal-to-noise ratio) as an extra input channel. It has
+  about 29k parameters, within the 50k budget.
+- **Training across SNR:** `dataset-generation.snr-db: [-5, 15]` draws one SNR
+  per generated batch instead of training at 10 dB only.
+- **Mismatched LMMSE (linear minimum mean squared error):** `lmmse-assumed`
+  adds an `lmmse-mismatched` estimator whose covariances come from assumed
+  statistics (TDL-A, 100 ns, no mobility) rather than the true channel. The
+  true-statistics `lmmse` row is still reported.
+
+All new options default to the v1 behavior, so v1 configs, datasets, and
+checkpoints are unchanged. Run it like v1:
+
+```bash
+python -m channel_estimation.train experiments/grid-neural-comparison-v2/config.yaml
+python experiments/grid-neural-comparison-v2/run-experiment.py
+python experiments/grid-neural-comparison-v2/run-sweep.py
+```
+
+v2 has only been smoke-tested on a small CPU run. It has no validated results
+yet; run it on a GPU before interpreting any numbers.
 
 ## Inspect or regenerate the dataset
 

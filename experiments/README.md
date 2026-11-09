@@ -24,3 +24,11 @@ It writes raw NMSE (normalized mean squared error) rows, summary statistics,
 neural margin statistics against LS-lin (least-squares estimator with linear
 interpolation) and covariance-informed LMMSE (linear minimum mean squared
 error), and a channel-specific comparison figure under `results/`.
+
+`grid-neural-comparison-v2/` is a harder version of the same comparison: a
+wider, frequency-selective, time-varying channel, pilots on every 4th
+subcarrier, a CNN trained across -5 to 15 dB with SNR (signal-to-noise ratio)
+input, dilated convolutions, and a residual output, plus an LMMSE (linear
+minimum mean squared error) baseline built from mismatched channel statistics.
+It uses the same `run-experiment.py` and `run-sweep.py` entry points. It has not
+been validated on a GPU yet.

@@ -25,7 +25,7 @@ with the ml stack.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 import numpy as np
@@ -55,6 +55,7 @@ class GridSpec:
     subcarrier_spacing_hz: float = 30e3
     cyclic_prefix_length: int = 6
     num_bits_per_symbol: int = 2
+    pilot_subcarrier_spacing: int = 1
 
     def __post_init__(self) -> None:
         if not isinstance(self.num_subcarriers, int) or self.num_subcarriers <= 0:
@@ -76,6 +77,15 @@ class GridSpec:
             raise ValueError("delay_spread_ns must be a positive finite value.")
         if not np.isfinite(self.max_doppler_hz) or self.max_doppler_hz < 0:
             raise ValueError("max_doppler_hz must be a non-negative finite value.")
+        if (
+            not isinstance(self.pilot_subcarrier_spacing, int)
+            or isinstance(self.pilot_subcarrier_spacing, bool)
+            or not 1 <= self.pilot_subcarrier_spacing <= self.num_subcarriers
+        ):
+            raise ValueError(
+                "pilot_subcarrier_spacing must be an integer between 1 and "
+                "num_subcarriers."
+            )
 
     @classmethod
     def from_experiment(cls, experiment: Mapping[str, Any]) -> "GridSpec":
@@ -87,29 +97,100 @@ class GridSpec:
             channel_kind=str(experiment.get("channel-model", "tdl-a")),
             delay_spread_ns=float(experiment.get("delay-spread-ns", 100.0)),
             max_doppler_hz=float(experiment.get("max-doppler-hz", 0.0)),
+            pilot_subcarrier_spacing=int(experiment.get("pilot-subcarrier-spacing", 1)),
         )
 
 
+def assumed_channel_spec(spec: GridSpec, assumed: Mapping[str, Any]) -> GridSpec:
+    """Return ``spec`` with the channel statistics replaced by ``assumed``.
+
+    the grid geometry (subcarriers, symbols, pilots) is kept, only the channel
+    model, delay spread, and doppler change. this is used to build an lmmse
+    estimator whose covariance assumptions deliberately differ from the channel
+    that generated the data, which is the realistic deployment situation.
+    """
+    return replace(
+        spec,
+        channel_kind=str(assumed.get("channel-model", spec.channel_kind)),
+        delay_spread_ns=float(assumed.get("delay-spread-ns", spec.delay_spread_ns)),
+        max_doppler_hz=float(assumed.get("max-doppler-hz", spec.max_doppler_hz)),
+    )
+
+
+def sparse_pilot_mask(
+    num_ofdm_symbols: int,
+    num_subcarriers: int,
+    pilot_ofdm_symbol_indices: tuple[int, ...],
+    subcarrier_spacing: int,
+) -> NDArray[np.bool_]:
+    """Return a ``(num_ofdm_symbols, num_subcarriers)`` pilot mask.
+
+    pilots sit on every ``subcarrier_spacing``-th subcarrier (starting at
+    subcarrier 0) of each pilot ofdm symbol. the last subcarrier is always a
+    pilot as well so that linear interpolation never has to extrapolate at the
+    band edge. all other resource elements carry data.
+    """
+    if subcarrier_spacing < 1:
+        raise ValueError("subcarrier_spacing must be at least 1.")
+    mask = np.zeros((num_ofdm_symbols, num_subcarriers), dtype=bool)
+    columns = np.arange(0, num_subcarriers, subcarrier_spacing)
+    columns = np.union1d(columns, [num_subcarriers - 1])
+    for symbol in pilot_ofdm_symbol_indices:
+        mask[symbol, columns] = True
+    return mask
+
+
+def qpsk_pilot_values(num_pilots: int, seed: int = 0) -> NDArray[np.complex64]:
+    """Return deterministic unit-power qpsk pilot symbols."""
+    if num_pilots <= 0:
+        raise ValueError("num_pilots must be positive.")
+    rng = np.random.default_rng(seed)
+    bits = rng.integers(0, 2, size=(num_pilots, 2))
+    symbols = ((1 - 2 * bits[:, 0]) + 1j * (1 - 2 * bits[:, 1])) / np.sqrt(2.0)
+    return symbols.astype(np.complex64)
+
+
 def build_resource_grid(spec: GridSpec) -> Any:
-    """Build a sionna ``ResourceGrid`` with a kronecker pilot pattern."""
+    """Build a sionna ``ResourceGrid`` for the configured pilot layout.
+
+    with ``pilot_subcarrier_spacing == 1`` this is sionna's kronecker pattern
+    (every subcarrier of each pilot symbol), which keeps the v1 experiments
+    unchanged. a larger spacing uses a custom pattern with pilots on every
+    n-th subcarrier only, so the estimator must interpolate across frequency.
+    """
     try:
-        from sionna.phy.ofdm import ResourceGrid
+        from sionna.phy.ofdm import PilotPattern, ResourceGrid
     except ImportError as exc:  # pragma: no cover - requires ml stack
         raise ImportError(
             "sionna is required for resource-grid simulation. install the project "
             "with the 'ml' extra or use requirements.txt."
         ) from exc
 
-    return ResourceGrid(
+    common = dict(
         num_ofdm_symbols=spec.num_ofdm_symbols,
         fft_size=spec.num_subcarriers,
         subcarrier_spacing=spec.subcarrier_spacing_hz,
         num_tx=1,
         num_streams_per_tx=1,
         cyclic_prefix_length=spec.cyclic_prefix_length,
-        pilot_pattern="kronecker",
-        pilot_ofdm_symbol_indices=list(spec.pilot_ofdm_symbol_indices),
     )
+    if spec.pilot_subcarrier_spacing == 1:
+        return ResourceGrid(
+            **common,
+            pilot_pattern="kronecker",
+            pilot_ofdm_symbol_indices=list(spec.pilot_ofdm_symbol_indices),
+        )
+
+    mask = sparse_pilot_mask(
+        spec.num_ofdm_symbols,
+        spec.num_subcarriers,
+        spec.pilot_ofdm_symbol_indices,
+        spec.pilot_subcarrier_spacing,
+    )
+    pilots = qpsk_pilot_values(int(mask.sum()))
+    # sionna expects [num_tx, num_streams_per_tx, ...] leading dimensions.
+    pattern = PilotPattern(mask[np.newaxis, np.newaxis], pilots[np.newaxis, np.newaxis])
+    return ResourceGrid(**common, pilot_pattern=pattern)
 
 
 def build_channel_model(spec: GridSpec) -> Any:
@@ -127,11 +208,15 @@ def build_channel_model(spec: GridSpec) -> Any:
         raise ImportError("sionna is required for channel modelling.") from exc
 
     model_letter = spec.channel_kind.split("-")[-1].upper()
+    # a fixed speed (min == max) keeps the simulated doppler consistent with the
+    # time covariance used by the lmmse baseline, which assumes that speed.
+    speed = _doppler_to_speed(spec.max_doppler_hz, spec.carrier_frequency_hz)
     return TDL(
         model=model_letter,
         delay_spread=spec.delay_spread_ns * 1e-9,
         carrier_frequency=spec.carrier_frequency_hz,
-        max_speed=_doppler_to_speed(spec.max_doppler_hz, spec.carrier_frequency_hz),
+        min_speed=speed,
+        max_speed=speed,
         num_rx_ant=1,
         num_tx_ant=1,
     )
