@@ -95,6 +95,9 @@ def build_grid_estimator(
     filters: int = 16,
     num_layers: int = 3,
     dropout_rate: float = 0.0,
+    dilations: tuple[int, ...] | list[int] | None = None,
+    residual: bool = False,
+    snr_input: bool = False,
 ) -> Any:
     """Build a deliberately small convolutional estimator over a resource grid.
 
@@ -105,8 +108,20 @@ def build_grid_estimator(
     interpolate the channel across non-pilot resource elements. ``filters`` is
     the per-layer width and the primary knob for a parameter-count budget.
 
+    optional extensions (all off by default, which reproduces the v1 model):
+
+    * ``dilations`` -- one dilation rate per hidden layer. dilated 3x3
+      convolutions widen the receptive field (e.g. ``(1, 2, 4, 8)`` sees 33x33
+      resource elements instead of 9x9) without adding parameters.
+    * ``residual`` -- predict a correction that is added to the input grid. this
+      only makes sense when the input is already a channel estimate (``ls-*``
+      input sources); the model then starts from the LS estimate.
+    * ``snr_input`` -- append a constant plane holding ``snr_db / 10`` as an
+      extra input channel. ``forward`` then requires an ``snr_db`` tensor of
+      shape ``(batch,)``.
+
     this is an experimental baseline, not a claim of novelty or state-of-the-art
-    performance, and it has not been executed in this environment.
+    performance.
     """
     if (
         not isinstance(num_ofdm_symbols, int)
@@ -127,6 +142,7 @@ def build_grid_estimator(
             "positive integers."
         )
     _validate_common(dropout_rate)
+    layer_dilations = _validate_dilations(dilations, num_layers)
 
     torch = _import_torch()
     nn = torch.nn
@@ -134,11 +150,19 @@ def build_grid_estimator(
     class GridEstimator(nn.Module):
         def __init__(self) -> None:
             super().__init__()
+            self.residual = bool(residual)
+            self.snr_input = bool(snr_input)
             layers: list[Any] = []
-            in_channels = 2
-            for _ in range(num_layers):
+            in_channels = 3 if self.snr_input else 2
+            for dilation in layer_dilations:
                 layers.append(
-                    nn.Conv2d(in_channels, filters, kernel_size=3, padding=1)
+                    nn.Conv2d(
+                        in_channels,
+                        filters,
+                        kernel_size=3,
+                        padding=dilation,
+                        dilation=dilation,
+                    )
                 )
                 layers.append(nn.ReLU())
                 if dropout_rate:
@@ -147,12 +171,35 @@ def build_grid_estimator(
             layers.append(nn.Conv2d(in_channels, 2, kernel_size=3, padding=1))
             self.net = nn.Sequential(*layers)
 
-        def forward(self, x: Any) -> Any:  # x: (batch, symbols, subcarriers, 2)
-            x = x.permute(0, 3, 1, 2)  # -> (batch, 2, symbols, subcarriers)
-            y = self.net(x)
-            return y.permute(0, 2, 3, 1)  # -> (batch, symbols, subcarriers, 2)
+        def forward(self, x: Any, snr_db: Any | None = None) -> Any:
+            # x: (batch, symbols, subcarriers, 2)
+            features = x.permute(0, 3, 1, 2)  # -> (batch, 2, symbols, subcarriers)
+            if self.snr_input:
+                if snr_db is None:
+                    raise ValueError("This model was built with snr_input=True.")
+                plane = (snr_db.to(features.dtype) / 10.0).reshape(-1, 1, 1, 1)
+                plane = plane.expand(-1, 1, *features.shape[2:])
+                features = torch.cat((features, plane), dim=1)
+            y = self.net(features).permute(0, 2, 3, 1)
+            return x + y if self.residual else y
 
     return GridEstimator()
+
+
+def _validate_dilations(
+    dilations: tuple[int, ...] | list[int] | None, num_layers: int
+) -> tuple[int, ...]:
+    if dilations is None:
+        return (1,) * num_layers
+    values = tuple(dilations)
+    if len(values) != num_layers:
+        raise ValueError("dilations must provide one value per hidden layer.")
+    if any(
+        not isinstance(value, int) or isinstance(value, bool) or value <= 0
+        for value in values
+    ):
+        raise ValueError("dilations must be positive integers.")
+    return values
 
 
 def count_parameters(model: Any) -> int:
