@@ -170,8 +170,11 @@ not yet validated on a GPU. It addresses the main weaknesses of the v1 setup:
   and no mobility. This is the comparison where a learned estimator can
   realistically be competitive.
 
-Sionna is now pinned to `>=2.0,<2.1` because `LMMSEInterpolator` is not
-exported by Sionna 2.1.0 or 2.2.0.
+Sionna 2.1 replaced `LMMSEInterpolator` with `LMMSEChannelEstimator`. The grid
+LMMSE (linear minimum mean squared error) baseline now uses the new class when
+it is available and falls back to the old one on Sionna 2.0.x. On a 200-sample
+CPU check, v1 and v2 baseline NMSE was identical under Sionna 2.0.1 and 2.2.0.
+The supported range is `sionna>=2.0,<2.3`.
 
 ## Next Step
 

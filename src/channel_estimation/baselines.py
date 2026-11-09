@@ -14,6 +14,7 @@ three baselines live here:
 
 from __future__ import annotations
 
+import importlib
 from typing import Any
 
 import numpy as np
@@ -153,12 +154,7 @@ def grid_lmmse_estimate(
     if not str(spec.channel_kind).startswith("tdl-"):
         raise ValueError("Grid LMMSE interpolation currently requires a TDL channel.")
     try:
-        from sionna.phy.ofdm import (
-            LMMSEInterpolator,
-            LSChannelEstimator,
-            tdl_freq_cov_mat,
-            tdl_time_cov_mat,
-        )
+        sionna_ofdm = importlib.import_module("sionna.phy.ofdm")
     except ImportError as exc:  # pragma: no cover - requires ml stack
         raise ImportError("Sionna is required for grid LMMSE estimation.") from exc
 
@@ -169,14 +165,14 @@ def grid_lmmse_estimate(
     ofdm_symbol_duration = (
         spec.num_subcarriers + spec.cyclic_prefix_length
     ) / (spec.num_subcarriers * spec.subcarrier_spacing_hz)
-    covariance_frequency = tdl_freq_cov_mat(
+    covariance_frequency = sionna_ofdm.tdl_freq_cov_mat(
         model,
         spec.subcarrier_spacing_hz,
         spec.num_subcarriers,
         spec.delay_spread_ns * 1e-9,
         precision="single",
     )
-    covariance_time = tdl_time_cov_mat(
+    covariance_time = sionna_ofdm.tdl_time_cov_mat(
         model,
         speed,
         spec.carrier_frequency_hz,
@@ -184,12 +180,20 @@ def grid_lmmse_estimate(
         spec.num_ofdm_symbols,
         precision="single",
     )
-    interpolator = LMMSEInterpolator(
-        resource_grid.pilot_pattern,
-        covariance_time,
-        covariance_frequency,
-        order=order,
-    )
-    estimator = LSChannelEstimator(resource_grid, interpolator=interpolator)
+    if hasattr(sionna_ofdm, "LMMSEChannelEstimator"):
+        # sionna >= 2.1 replaced LMMSEInterpolator with a full estimator.
+        estimator = sionna_ofdm.LMMSEChannelEstimator(
+            resource_grid, covariance_time, covariance_frequency, order=order
+        )
+    else:
+        interpolator = sionna_ofdm.LMMSEInterpolator(
+            resource_grid.pilot_pattern,
+            covariance_time,
+            covariance_frequency,
+            order=order,
+        )
+        estimator = sionna_ofdm.LSChannelEstimator(
+            resource_grid, interpolator=interpolator
+        )
     h_hat, _err_var = estimator(received_grid, noise_power)
     return to_numpy(h_hat)

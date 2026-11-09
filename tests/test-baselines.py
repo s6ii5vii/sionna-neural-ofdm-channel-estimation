@@ -163,3 +163,35 @@ def test_lmmse_reduces_error_versus_ls_under_noise():
 def test_lmmse_rejects_mismatched_covariance():
     with pytest.raises(ValueError, match="square"):
         lmmse_estimate(np.zeros((5, 4), dtype=complex), np.eye(3), noise_power=1.0)
+
+
+def test_grid_lmmse_prefers_channel_estimator_api_when_available(monkeypatch):
+    """Sionna >= 2.1 exposes LMMSEChannelEstimator instead of LMMSEInterpolator."""
+    calls = {}
+
+    class FakeLMMSEChannelEstimator:
+        def __init__(self, grid, cov_time, cov_freq, *, order):
+            calls["args"] = (grid, cov_time, cov_freq, order)
+
+        def __call__(self, _received, _noise):
+            return np.ones((1, 1), dtype=np.complex64), None
+
+    fake_ofdm = ModuleType("sionna.phy.ofdm")
+    fake_ofdm.LMMSEChannelEstimator = FakeLMMSEChannelEstimator
+    fake_ofdm.tdl_freq_cov_mat = lambda *_a, **_k: "freq"
+    fake_ofdm.tdl_time_cov_mat = lambda *_a, **_k: "time"
+    monkeypatch.setitem(sys.modules, "sionna.phy.ofdm", fake_ofdm)
+
+    spec = SimpleNamespace(
+        channel_kind="tdl-a",
+        max_doppler_hz=0.0,
+        carrier_frequency_hz=3.5e9,
+        num_subcarriers=72,
+        cyclic_prefix_length=6,
+        subcarrier_spacing_hz=30e3,
+        delay_spread_ns=100.0,
+        num_ofdm_symbols=14,
+    )
+    grid = object()
+    grid_lmmse_estimate(object(), 0.1, grid, spec, order="t-f")
+    assert calls["args"] == (grid, "time", "freq", "t-f")
