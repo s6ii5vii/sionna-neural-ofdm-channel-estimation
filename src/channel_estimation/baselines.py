@@ -135,13 +135,21 @@ def grid_lmmse_estimate(
     spec: Any,
     *,
     order: str = "f-t",
+    assumed_spec: Any | None = None,
 ) -> NDArray[np.complexfloating]:
     """Estimate a TDL grid with covariance-informed LMMSE interpolation.
 
     The covariance matrices use the configured TDL model, delay spread,
     mobility, carrier frequency, and OFDM symbol duration. This is a
     model-informed benchmark and should be reported as such.
+
+    ``assumed_spec`` (same grid, different channel statistics) builds the
+    covariances from assumed rather than true channel statistics. That gives a
+    mismatched LMMSE, which is closer to what a deployed receiver can actually
+    know about its channel.
     """
+    if assumed_spec is not None:
+        spec = assumed_spec
     if not str(spec.channel_kind).startswith("tdl-"):
         raise ValueError("Grid LMMSE interpolation currently requires a TDL channel.")
     try:
