@@ -9,9 +9,10 @@ experiment engine.
    NMSE (normalized mean squared error).
 3. `03-dataset-exploration.ipynb` inspects the committed sample dataset.
 4. `04-low-resource-experiment-demo.ipynb` examines the first constrained profile.
-5. `05-colab-grid-baseline.ipynb` runs the Sionna resource-grid baseline on a
-   Colab GPU (graphics processing unit) (clone, install, verify the
-   `sionna.phy` API (application programming interface), test, and sweep).
+5. `05-colab-grid-baseline.ipynb` runs the Sionna resource-grid experiments on a
+   Colab GPU (graphics processing unit): clone, install, test, then train and
+   evaluate the v2 grid comparison, run its sweep, and download the results.
+   The v1 baseline and comparison are kept at the end for reference.
 
 Run `python -m pip install -e .` from the repository root before opening them.
 Reusable logic belongs in `src/channel_estimation/`; reproducible sweeps belong

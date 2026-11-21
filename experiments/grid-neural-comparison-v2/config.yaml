@@ -1,0 +1,66 @@
+# v2 makes the estimation problem harder than v1 and gives the CNN a fairer
+# setup. v1 is kept unchanged so its validated results stay reproducible.
+#
+# what changes versus v1:
+# - wider band (144 subcarriers, about 4.3 MHz at 30 kHz spacing) and a 300 ns
+#   delay spread, so the channel varies across frequency;
+# - 200 Hz maximum doppler (about 62 km/h at 3.5 GHz), so the channel varies
+#   across the OFDM symbols between pilots;
+# - pilots on every 4th subcarrier of the pilot symbols, so the estimator has to
+#   interpolate in frequency as well as time;
+# - the CNN trains across -5 to 15 dB, receives the SNR as an input, uses dilated
+#   convolutions for a wider receptive field, and predicts a residual on top of
+#   the LS-lin estimate;
+# - a second LMMSE baseline builds its covariances from assumed statistics
+#   (TDL-A, 100 ns, no mobility, i.e. the v1 channel) instead of the true ones.
+experiment:
+  name: grid-neural-comparison-v2
+  description: Harder grid comparison of LS (least-squares) interpolation, true-statistics and mismatched LMMSE (linear minimum mean squared error), and a small CNN (convolutional neural network) trained across SNR.
+  num-subcarriers: 144
+  num-ofdm-symbols: 14
+  pilot-ofdm-symbol-indices: [2, 11]
+  pilot-subcarrier-spacing: 4
+  channel-model: tdl-a
+  delay-spread-ns: 300
+  max-doppler-hz: 200
+  snr-db: [-5, 0, 5, 10, 15]
+  num-samples: 1000
+  model-parameter-target: 50000
+  random-seed: 100042
+  lmmse-assumed:
+    channel-model: tdl-a
+    delay-spread-ns: 100
+    max-doppler-hz: 0
+
+training:
+  dataset-path: data/channel-estimation-grid-v2-dataset.npz
+  hidden-units: 32
+  num-layers: 4
+  dilations: [1, 2, 4, 8]
+  residual: true
+  snr-input: true
+  dropout-rate: 0.0
+  epochs: 30
+  batch-size: 32
+  learning-rate: 0.001
+  model-seed: 50042
+  checkpoint-path: results/checkpoints/grid-neural-comparison-v2.pt
+  dataset-generation:
+    num-samples: 8000
+    snr-db: [-5, 15]
+    batch-size: 50
+    random-seed: 42
+    input-source: ls-lin
+
+neural:
+  checkpoint-path: results/checkpoints/grid-neural-comparison-v2.pt
+  filters: 32
+  num-layers: 4
+  dilations: [1, 2, 4, 8]
+  residual: true
+  snr-input: true
+  input-source: ls-lin
+
+output:
+  figures-dir: results/figures
+  tables-dir: results/tables

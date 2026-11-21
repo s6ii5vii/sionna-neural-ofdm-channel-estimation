@@ -62,6 +62,7 @@ def _load_neural_estimator(config: dict[str, Any]) -> Any:
     imported lazily.
     """
     from .models import build_grid_estimator
+    from .train import grid_architecture_options
 
     neural = config["neural"]
     experiment = config["experiment"]
@@ -81,6 +82,7 @@ def _load_neural_estimator(config: dict[str, Any]) -> Any:
         int(experiment["num-subcarriers"]),
         filters=int(neural["filters"]),
         num_layers=int(neural["num-layers"]),
+        **grid_architecture_options(neural),
     )
     state = torch.load(checkpoint, map_location="cpu", weights_only=True)
     model.load_state_dict(state)
@@ -91,13 +93,27 @@ def _load_neural_estimator(config: dict[str, Any]) -> Any:
 
 
 def _neural_predict(
-    torch: Any, model: Any, device: Any, received_grid_complex: np.ndarray
+    torch: Any,
+    model: Any,
+    device: Any,
+    received_grid_complex: np.ndarray,
+    snr_db: float | None = None,
 ) -> np.ndarray:
-    """Run the CNN on a batch of squeezed complex observations, return complex."""
+    """Run the CNN on a batch of squeezed complex observations, return complex.
+
+    ``snr_db`` is passed to the model only when it was built with an SNR input.
+    """
     features = complex_to_features(received_grid_complex).astype(np.float32)
+    inputs = torch.as_tensor(features).to(device)
     with torch.no_grad():
-        predictions = model(torch.as_tensor(features).to(device)).cpu().numpy()
-    return features_to_complex(predictions)
+        if getattr(model, "snr_input", False):
+            if snr_db is None:
+                raise ValueError("The neural estimator needs the evaluation SNR.")
+            snr = torch.full((inputs.shape[0],), float(snr_db), device=device)
+            predictions = model(inputs, snr)
+        else:
+            predictions = model(inputs)
+    return features_to_complex(predictions.cpu().numpy())
 
 
 def _neural_input_grid(
@@ -131,10 +147,17 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
     requires the ml stack (Sionna 2.x, which uses PyTorch); ``sionna_ofdm`` is
     imported lazily. not executed in this environment.
     """
-    from .sionna_ofdm import GridSpec, simulate_grid_tensors, to_numpy
+    from .sionna_ofdm import (
+        GridSpec,
+        assumed_channel_spec,
+        simulate_grid_tensors,
+        to_numpy,
+    )
 
     experiment = config["experiment"]
     spec = GridSpec.from_experiment(experiment)
+    assumed = experiment.get("lmmse-assumed")
+    mismatched_spec = assumed_channel_spec(spec, assumed) if assumed else None
     num_samples = experiment["num-samples"]
     seed = experiment["random-seed"]
 
@@ -168,12 +191,30 @@ def evaluate_grid_baselines(config: dict[str, Any]) -> list[dict[str, float | in
                     "num-samples": int(num_samples),
                 }
             )
+        if mismatched_spec is not None:
+            # same estimator, but its covariances come from assumed rather than
+            # true channel statistics.
+            h_hat_mismatched = grid_lmmse_estimate(
+                y, no, resource_grid, spec, assumed_spec=mismatched_spec
+            )
+            rows.append(
+                {
+                    "estimator": "lmmse-mismatched",
+                    "snr-db": float(snr_db),
+                    "nmse": normalized_mean_squared_error(
+                        h_freq_np, h_hat_mismatched
+                    ),
+                    "num-samples": int(num_samples),
+                }
+            )
         if neural_bundle is not None:
             model, device, torch_module = neural_bundle
             input_source = str(config["neural"].get("input-source", "received"))
             neural_input = _neural_input_grid(input_source, y, no, resource_grid)
             h_true_squeezed = _squeeze_batch_grid(h_freq_np)
-            h_hat_neural = _neural_predict(torch_module, model, device, neural_input)
+            h_hat_neural = _neural_predict(
+                torch_module, model, device, neural_input, float(snr_db)
+            )
             rows.append(
                 {
                     "estimator": "neural-cnn",

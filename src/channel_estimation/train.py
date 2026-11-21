@@ -60,11 +60,13 @@ def _generate_dataset_from_config(config: dict[str, Any], dataset_path: Path) ->
     from .sionna_ofdm import GridSpec
 
     spec = GridSpec.from_experiment(experiment)
+    snr_db = generation["snr-db"]
     dataset = generate_grid_dataset(
         spec,
         num_samples=int(generation["num-samples"]),
-        snr_db=float(generation["snr-db"]),
+        snr_db=[float(v) for v in snr_db] if isinstance(snr_db, list) else float(snr_db),
         random_seed=int(generation.get("random-seed", 42)),
+        batch_size=int(generation.get("batch-size", 256)),
         input_source=str(generation.get("input-source", "received")),
     )
     dataset[DATASET_METADATA_KEY] = np.asarray(
@@ -86,6 +88,7 @@ def _build_model(data: dict[str, Any], training: dict[str, Any]) -> Any:
             filters=int(training["hidden-units"]),
             num_layers=int(training.get("num-layers", 3)),
             dropout_rate=dropout_rate,
+            **grid_architecture_options(training),
         )
     num_pilots = int(data["x_train"].shape[1])
     return build_lightweight_estimator(
@@ -95,6 +98,40 @@ def _build_model(data: dict[str, Any], training: dict[str, Any]) -> Any:
     )
 
 
+def grid_architecture_options(block: dict[str, Any]) -> dict[str, Any]:
+    """Map the optional grid-CNN config keys to ``build_grid_estimator`` kwargs."""
+    dilations = block.get("dilations")
+    return {
+        "dilations": tuple(int(v) for v in dilations) if dilations else None,
+        "residual": bool(block.get("residual", False)),
+        "snr_input": bool(block.get("snr-input", False)),
+    }
+
+
+def _split_snr(data: dict[str, Any], split: str, snr_input: bool) -> Any | None:
+    """Return per-sample SNR values for a split, or None if the model ignores SNR."""
+    if not snr_input:
+        return None
+    key = f"snr_db_{split}"
+    if key not in data:
+        raise KeyError(
+            f"The model uses SNR as an input but the dataset has no '{key}' array; "
+            "regenerate the dataset."
+        )
+    return data[key]
+
+
+def _model_inputs(batch: Any, device: Any) -> tuple[Any, Any, Any | None]:
+    """Unpack a loader batch into (inputs, targets, optional snr) on ``device``."""
+    inputs, targets = batch[0].to(device), batch[1].to(device)
+    snr = batch[2].to(device) if len(batch) > 2 else None
+    return inputs, targets, snr
+
+
+def _predict(model: Any, inputs: Any, snr: Any | None) -> Any:
+    return model(inputs) if snr is None else model(inputs, snr)
+
+
 def _loader(
     torch: Any,
     x: Any,
@@ -102,12 +139,16 @@ def _loader(
     batch_size: int,
     shuffle: bool,
     *,
+    snr: Any | None = None,
     generator: Any | None = None,
 ) -> Any:
-    dataset = torch.utils.data.TensorDataset(
+    tensors = [
         torch.as_tensor(np.asarray(x), dtype=torch.float32),
         torch.as_tensor(np.asarray(y), dtype=torch.float32),
-    )
+    ]
+    if snr is not None:
+        tensors.append(torch.as_tensor(np.asarray(snr), dtype=torch.float32))
+    dataset = torch.utils.data.TensorDataset(*tensors)
     return torch.utils.data.DataLoader(
         dataset, batch_size=batch_size, shuffle=shuffle, generator=generator
     )
@@ -141,13 +182,33 @@ def _git_revision() -> str | None:
 
 
 def _resource_report(
-    torch: Any, model: Any, data: dict[str, Any], checkpoint: Path, device: Any
+    torch: Any,
+    model: Any,
+    data: dict[str, Any],
+    checkpoint: Path,
+    device: Any,
+    *,
+    snr_input: bool = False,
 ) -> dict[str, Any]:
     """Measure test NMSE plus lightweight-deployment resource metrics."""
     model.eval()
     x_test = torch.as_tensor(np.asarray(data["x_test"]), dtype=torch.float32)
+    snr_values = _split_snr(data, "test", snr_input)
+    snr_test = (
+        None
+        if snr_values is None
+        else torch.as_tensor(np.asarray(snr_values), dtype=torch.float32)
+    )
     with torch.no_grad():
-        predictions = model(x_test.to(device)).cpu().numpy()
+        predictions = (
+            _predict(
+                model,
+                x_test.to(device),
+                None if snr_test is None else snr_test.to(device),
+            )
+            .cpu()
+            .numpy()
+        )
 
     test_nmse = normalized_mean_squared_error(
         features_to_complex(np.asarray(data["y_test"])),
@@ -156,15 +217,18 @@ def _resource_report(
 
     benchmark_size = min(32, int(x_test.shape[0]))
     benchmark = x_test[:benchmark_size].to(device)
+    benchmark_snr = (
+        None if snr_test is None else snr_test[:benchmark_size].to(device)
+    )
     synchronize = torch.cuda.synchronize if device.type == "cuda" else lambda: None
     with torch.no_grad():
         for _ in range(5):
-            model(benchmark)
+            _predict(model, benchmark, benchmark_snr)
         synchronize()
         timings = []
         for _ in range(20):
             start = time.perf_counter()
-            model(benchmark)
+            _predict(model, benchmark, benchmark_snr)
             synchronize()
             timings.append(time.perf_counter() - start)
 
@@ -239,6 +303,7 @@ def train_model(config: dict[str, Any]) -> Path:
     loss_fn = torch.nn.MSELoss()
 
     batch_size = int(training["batch-size"])
+    snr_input = bool(training.get("snr-input", False))
     loader_generator = torch.Generator().manual_seed(model_seed)
     train_loader = _loader(
         torch,
@@ -246,10 +311,16 @@ def train_model(config: dict[str, Any]) -> Path:
         data["y_train"],
         batch_size,
         shuffle=True,
+        snr=_split_snr(data, "train", snr_input),
         generator=loader_generator,
     )
     val_loader = _loader(
-        torch, data["x_val"], data["y_val"], batch_size, shuffle=False
+        torch,
+        data["x_val"],
+        data["y_val"],
+        batch_size,
+        shuffle=False,
+        snr=_split_snr(data, "val", snr_input),
     )
 
     best_val_loss = float("inf")
@@ -258,19 +329,22 @@ def train_model(config: dict[str, Any]) -> Path:
     validation_history: list[float] = []
     for epoch in range(int(training["epochs"])):
         model.train()
-        for inputs, targets in train_loader:
-            inputs, targets = inputs.to(device), targets.to(device)
+        for batch in train_loader:
+            inputs, targets, snr = _model_inputs(batch, device)
             optimizer.zero_grad()
-            loss = loss_fn(model(inputs), targets)
+            loss = loss_fn(_predict(model, inputs, snr), targets)
             loss.backward()
             optimizer.step()
 
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-            for inputs, targets in val_loader:
-                inputs, targets = inputs.to(device), targets.to(device)
-                val_loss += loss_fn(model(inputs), targets).item() * inputs.shape[0]
+            for batch in val_loader:
+                inputs, targets, snr = _model_inputs(batch, device)
+                val_loss += (
+                    loss_fn(_predict(model, inputs, snr), targets).item()
+                    * inputs.shape[0]
+                )
         val_loss /= max(len(val_loader.dataset), 1)
         validation_history.append(float(val_loss))
         if val_loss < best_val_loss:
@@ -289,10 +363,16 @@ def train_model(config: dict[str, Any]) -> Path:
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), checkpoint)
 
-    report = _resource_report(torch, model, data, checkpoint, device)
+    report = _resource_report(
+        torch, model, data, checkpoint, device, snr_input=snr_input
+    )
+    architecture = grid_architecture_options(training)
     report["training"] = {
         "hidden-units": int(training["hidden-units"]),
         "num-layers": int(training.get("num-layers", 3)),
+        "dilations": list(architecture["dilations"] or []),
+        "residual": architecture["residual"],
+        "snr-input": architecture["snr_input"],
         "dropout-rate": float(training.get("dropout-rate", 0.0)),
         "epochs": int(training["epochs"]),
         "batch-size": int(training["batch-size"]),

@@ -94,6 +94,12 @@ def validate_config(config: Mapping[str, Any]) -> None:
             "input-source", "received"
         ) != neural.get("input-source", "received"):
             raise ConfigError("Training and neural input sources must match.")
+        for key, default in _SHARED_ARCHITECTURE_DEFAULTS.items():
+            if training.get(key, default) != neural.get(key, default):
+                raise ConfigError(f"'training.{key}' and 'neural.{key}' must match.")
+
+
+_SHARED_ARCHITECTURE_DEFAULTS = {"dilations": None, "residual": False, "snr-input": False}
 
 
 _VALID_CHANNEL_MODELS = ("tdl-a", "tdl-b", "tdl-c", "tdl-d", "tdl-e", "rayleigh")
@@ -149,6 +155,45 @@ def _validate_grid_experiment(experiment: Mapping[str, Any]) -> None:
     if not _is_finite_number(max_doppler) or max_doppler < 0:
         raise ConfigError("'experiment.max-doppler-hz' must be non-negative.")
 
+    spacing = experiment.get("pilot-subcarrier-spacing", 1)
+    if (
+        not isinstance(spacing, int)
+        or isinstance(spacing, bool)
+        or not 1 <= spacing <= experiment["num-subcarriers"]
+    ):
+        raise ConfigError(
+            "'experiment.pilot-subcarrier-spacing' must be an integer between 1 "
+            "and 'num-subcarriers'."
+        )
+
+    assumed = experiment.get("lmmse-assumed")
+    if assumed is not None:
+        _validate_lmmse_assumed(assumed)
+
+
+def _validate_lmmse_assumed(assumed: object) -> None:
+    """Validate the channel statistics assumed by the mismatched LMMSE baseline."""
+    if not isinstance(assumed, Mapping) or not assumed:
+        raise ConfigError("'experiment.lmmse-assumed' must be a non-empty mapping.")
+    unknown = set(assumed) - {"channel-model", "delay-spread-ns", "max-doppler-hz"}
+    if unknown:
+        raise ConfigError(
+            f"Unknown 'experiment.lmmse-assumed' keys: {sorted(unknown)}."
+        )
+    channel_model = assumed.get("channel-model", "tdl-a")
+    if channel_model not in _VALID_CHANNEL_MODELS or channel_model == "rayleigh":
+        raise ConfigError(
+            "'experiment.lmmse-assumed.channel-model' must be a TDL model."
+        )
+    delay_spread = assumed.get("delay-spread-ns", 100.0)
+    if not _is_finite_number(delay_spread) or delay_spread <= 0:
+        raise ConfigError("'experiment.lmmse-assumed.delay-spread-ns' must be positive.")
+    max_doppler = assumed.get("max-doppler-hz", 0.0)
+    if not _is_finite_number(max_doppler) or max_doppler < 0:
+        raise ConfigError(
+            "'experiment.lmmse-assumed.max-doppler-hz' must be non-negative."
+        )
+
 
 def _is_finite_number(value: object) -> bool:
     return (
@@ -186,9 +231,17 @@ def _validate_training_config(training: object) -> None:
     if not _is_finite_number(learning_rate) or learning_rate <= 0:
         raise ConfigError("'training.learning-rate' must be positive.")
 
+    _validate_architecture_options(training, "training", num_layers)
+
     generation = training.get("dataset-generation")
     if generation is not None:
         _validate_dataset_generation(generation)
+        if training.get("residual") and generation.get(
+            "input-source", "received"
+        ) == "received":
+            raise ConfigError(
+                "'training.residual' needs an 'ls-nn' or 'ls-lin' input source."
+            )
 
 
 def _validate_dataset_generation(generation: object) -> None:
@@ -208,9 +261,26 @@ def _validate_dataset_generation(generation: object) -> None:
             )
 
     snr_db = generation.get("snr-db")
-    if not _is_finite_number(snr_db):
+    if isinstance(snr_db, list):
+        if (
+            len(snr_db) != 2
+            or not all(_is_finite_number(value) for value in snr_db)
+            or snr_db[0] >= snr_db[1]
+        ):
+            raise ConfigError(
+                "'training.dataset-generation.snr-db' range must be [low, high] "
+                "with low < high."
+            )
+    elif not _is_finite_number(snr_db):
         raise ConfigError(
-            "'training.dataset-generation.snr-db' must be a finite number."
+            "'training.dataset-generation.snr-db' must be a finite number or a "
+            "[low, high] range."
+        )
+
+    batch_size = generation.get("batch-size", 256)
+    if not isinstance(batch_size, int) or isinstance(batch_size, bool) or batch_size <= 0:
+        raise ConfigError(
+            "'training.dataset-generation.batch-size' must be a positive integer."
         )
 
     input_source = generation.get("input-source", "received")
@@ -240,6 +310,35 @@ def _validate_neural_config(neural: object) -> None:
         raise ConfigError(
             f"'neural.input-source' must be one of {_VALID_GRID_NEURAL_INPUTS}."
         )
+
+    _validate_architecture_options(neural, "neural", neural["num-layers"])
+    if neural.get("residual") and input_source == "received":
+        raise ConfigError(
+            "'neural.residual' needs an 'ls-nn' or 'ls-lin' input source."
+        )
+
+
+def _validate_architecture_options(
+    block: Mapping[str, Any], name: str, num_layers: int
+) -> None:
+    """Validate the optional grid-CNN extensions shared by training and neural."""
+    dilations = block.get("dilations")
+    if dilations is not None:
+        if (
+            not isinstance(dilations, list)
+            or len(dilations) != num_layers
+            or any(
+                not isinstance(value, int) or isinstance(value, bool) or value <= 0
+                for value in dilations
+            )
+        ):
+            raise ConfigError(
+                f"'{name}.dilations' must list one positive integer per layer."
+            )
+    for key in ("residual", "snr-input"):
+        value = block.get(key)
+        if value is not None and not isinstance(value, bool):
+            raise ConfigError(f"'{name}.{key}' must be true or false.")
 
 
 def resolve_path(config: Mapping[str, Any], value: str | Path) -> Path:
